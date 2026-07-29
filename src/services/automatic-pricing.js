@@ -19,6 +19,9 @@ function ageMs(value, now) {
 }
 
 function cleanCardContext(card = {}) {
+  const grade = card.grade && typeof card.grade === 'object'
+    ? card.grade.grade ?? null
+    : card.grade ?? null;
   return {
     cardId: card.id || null,
     player: card.player || card.subject || null,
@@ -28,7 +31,7 @@ function cleanCardContext(card = {}) {
     cardNumber: card.cardNumber || null,
     parallel: card.parallel || card.variation || null,
     grader: card.grade?.company || card.grader || null,
-    grade: card.grade?.grade ?? card.grade || null,
+    grade,
   };
 }
 
@@ -42,7 +45,7 @@ function cardQuery(card = {}) {
     context.cardNumber,
     context.parallel,
     context.grader,
-    typeof context.grade === 'object' ? context.grade?.grade : context.grade,
+    context.grade,
   ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
