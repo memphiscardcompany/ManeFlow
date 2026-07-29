@@ -25,7 +25,20 @@ Close the remaining code-side safety gaps around Meta attachments, outbound-chan
 
 ## Tested implementation
 
-The branch contains focused Node tests for:
+The exact source head `1a92a9ad2086d9f1dd17d2e8733381f65cabee9a` passed both authoritative pull-request workflows before PR #10 was merged:
+
+- **Verify ManeFlow**, workflow run `30461494393`: success.
+  - API/PWA verification and secret scan: success.
+  - Native-client typecheck and dependency audit: success.
+  - CPU-only vision tests and safe GPU fallback checks: success.
+- **PostgreSQL and pgvector Integration**, workflow run `30461494496`: success.
+  - All migrations through version `008`: success.
+  - Schema, pgvector, HNSW, forced row-level security, and runtime-role verification: success.
+  - Cross-tenant RLS and vector-search isolation: success.
+
+PR #10 merged into canonical `main` as `154a6b2fe7b3e625f23198080dc5ceab23c3fc4c`.
+
+Focused Node coverage includes:
 
 - attachment host rejection before network access;
 - redirect revalidation;
@@ -37,20 +50,18 @@ The branch contains focused Node tests for:
 - owner-scoped provider-echo reconciliation;
 - production configuration gates for owner UUID, assets, tokens, Graph API version, endpoints, and channels.
 
-GitHub Actions on the exact pull-request head is the authoritative verification record. No passing result is claimed in this document until CI completes.
-
 ## Not verified
 
-- Public HTTPS webhook deployment.
+- Public first-party HTTPS staging deployment.
 - Meta dashboard callback challenge.
-- Exact Page and Instagram professional-account subscriptions.
-- Current access-token health and expiry.
+- Exact Page and Instagram professional-account linkage and subscriptions.
+- Current production access-token health and expiry.
 - Business Verification or App Review approval.
 - Joshua's production owner MFA and recent-reauthentication flow.
-- Private object-storage persistence and deletion for retrieved attachments.
+- Private object-storage persistence, retention, and deletion for retrieved attachments.
 - Real signed Messenger and Instagram events.
 - One real owner-approved provider send and signed echo round trip.
-- Final delivery beyond provider acceptance/echo observation.
+- Final delivery beyond provider acceptance and signed echo observation.
 
 ## Blocked external work
 
