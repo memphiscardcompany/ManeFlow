@@ -12,6 +12,7 @@ export class DatabaseRuntime {
     this.pool = null;
     this.inventoryRepository = null;
     this.catalogRepository = null;
+    this.metaInboundRepository = null;
     this.metaOutboundRepository = null;
     this.initializationError = null;
   }
@@ -24,9 +25,15 @@ export class DatabaseRuntime {
     if (!this.configured) return this;
     if (this.pool && this.inventoryRepository) return this;
     try {
-      const [{ createInventoryDatabasePool, InventoryRepository }, { CatalogRepository }, { MetaOutboundRepository }] = await Promise.all([
+      const [
+        { createInventoryDatabasePool, InventoryRepository },
+        { CatalogRepository },
+        { MetaInboundRepository },
+        { MetaOutboundRepository },
+      ] = await Promise.all([
         import('./inventoryRepository.js'),
         import('./catalogRepository.js'),
+        import('./metaInboundRepository.js'),
         import('./metaOutboundRepository.js'),
       ]);
       this.pool = createInventoryDatabasePool({
@@ -44,6 +51,7 @@ export class DatabaseRuntime {
         statementTimeoutMs: this.config.databaseStatementTimeoutMs,
       });
       this.catalogRepository = new CatalogRepository(this.pool);
+      this.metaInboundRepository = new MetaInboundRepository(this.pool);
       this.metaOutboundRepository = new MetaOutboundRepository(this.pool);
       await this.pool.query('SELECT 1 AS ok');
       this.initializationError = null;
@@ -137,11 +145,21 @@ export class DatabaseRuntime {
     return this.metaOutboundRepository;
   }
 
+  requireMetaInboundRepository() {
+    if (!this.metaInboundRepository) {
+      throw new DatabaseRuntimeError('PostgreSQL Meta inbox repository is not ready.', {
+        code: 'META_INBOUND_REPOSITORY_NOT_READY',
+      });
+    }
+    return this.metaInboundRepository;
+  }
+
   async close() {
     const pool = this.pool;
     this.pool = null;
     this.inventoryRepository = null;
     this.catalogRepository = null;
+    this.metaInboundRepository = null;
     this.metaOutboundRepository = null;
     if (pool) await pool.end();
   }

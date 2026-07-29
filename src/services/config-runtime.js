@@ -42,8 +42,10 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
     if (!has(config.releaseDeployedAt)) warnings.push('RELEASE_DEPLOYED_AT is not set.');
     if (config.metaIntakeEnabled === true) {
       if (config.metaKillSwitch === true) errors.push('MANEBRAIN_META_KILL_SWITCH must be false before Meta intake can be enabled.');
-      if (!Array.isArray(config.platformOwnerUserIds) || config.platformOwnerUserIds.length === 0) {
-        errors.push("MANEFLOW_PLATFORM_OWNER_USER_IDS must contain Joshua's verified immutable user ID before Meta intake can be enabled.");
+      if (!Array.isArray(config.platformOwnerUserIds) || config.platformOwnerUserIds.length !== 1) {
+        errors.push('MANEFLOW_PLATFORM_OWNER_USER_IDS must contain exactly one verified immutable owner UUID before owner-only Meta intake can be enabled.');
+      } else if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(config.platformOwnerUserIds[0])) {
+        errors.push('MANEFLOW_PLATFORM_OWNER_USER_IDS must use the canonical PostgreSQL owner UUID.');
       }
       for (const [name, value] of [
         ['META_APP_SECRET', config.metaAppSecret],

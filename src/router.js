@@ -60,6 +60,9 @@ import {
   badRequest, forbidden, json, notFound, parseWindow, readBody, readJson,
   text, timingSafeEqualString, toCsv, unauthorized, verifyHmac,
 } from './services/utils.js';
+import { ingestMetaWebhook } from './manebrain/meta-intake.js';
+import { metaOperationMode, requirePlatformOwner } from './manebrain/owner-authority.js';
+import { verifyMetaChallenge } from './manebrain/meta-security.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, '../public');
@@ -143,6 +146,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
   ensureSourcePolicies(store.state);
   const cardImageOptions = imageConfig(config);
   const generalLimiter = new RateLimiter({ windowMs: 60_000, max: 240 });
+  const metaWebhookLimiter = new RateLimiter({ windowMs: 60_000, max: 6_000 });
   const authLimiter = new RateLimiter({ windowMs: 15 * 60_000, max: 30 });
   const scanLimiter = new RateLimiter({ windowMs: 60_000, max: 30 });
   const visionWorker = new VisionWorkerClient({ baseUrl: config.visionWorkerUrl, timeoutMs: config.visionWorkerTimeoutMs });
@@ -321,6 +325,19 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
     if (actor?.role === 'admin') return actor;
     forbidden(res, 'Administrator authorization is required.');
     return null;
+  }
+
+  function platformOwnerActor(req, res, options = {}) {
+    try {
+      return requirePlatformOwner(actorFromRequest(req), config, options);
+    } catch (error) {
+      forbidden(res, error.message);
+      return null;
+    }
+  }
+
+  function configuredMetaOwnerId() {
+    return config.platformOwnerUserIds.length === 1 ? config.platformOwnerUserIds[0] : null;
   }
 
   async function dashboardFor(userId) {
@@ -586,7 +603,8 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
 
   async function handleApi(req, res, url) {
     const method = req.method || 'GET';
-    const rate = generalLimiter.check(`${clientIp(req)}:${url.pathname.split('/').slice(0, 3).join('/')}`);
+    const limiter = url.pathname === '/api/webhooks/meta' ? metaWebhookLimiter : generalLimiter;
+    const rate = limiter.check(`${clientIp(req)}:${url.pathname.split('/').slice(0, 3).join('/')}`);
     res.setHeader('x-ratelimit-remaining', String(rate.remaining));
     res.setHeader('x-ratelimit-reset', String(Math.ceil(rate.resetAt / 1000)));
     if (!rate.allowed) return json(res, 429, { error: 'rate_limited', message: 'Request limit reached. Try again shortly.' });
@@ -600,6 +618,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
       '/api/auth/reset-password',
       '/api/billing/stripe/webhook',
       '/api/admin/provider-ingest',
+      '/api/webhooks/meta',
     ]);
     if (config.csrfProtection && isMutation(method) && !csrfExempt.has(url.pathname)) {
       const actor = actorFromRequest(req);
@@ -643,6 +662,100 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         },
         migrationVersion: config.migrationVersion || null,
       });
+    }
+
+    if (url.pathname === '/api/webhooks/meta' && method === 'GET') {
+      const verification = verifyMetaChallenge({
+        mode: url.searchParams.get('hub.mode'),
+        token: url.searchParams.get('hub.verify_token'),
+        challenge: url.searchParams.get('hub.challenge'),
+      }, config.metaWebhookVerifyToken);
+      if (!verification.ok) {
+        return json(res, verification.status, { error: verification.error });
+      }
+      return text(res, 200, verification.challenge);
+    }
+
+    if (url.pathname === '/api/webhooks/meta' && method === 'POST') {
+      const ownerUserId = configuredMetaOwnerId();
+      if (!ownerUserId) {
+        return json(res, 503, { error: 'META_OWNER_CONFIGURATION_INVALID' });
+      }
+      try {
+        const rawBody = await readBody(req, Math.min(config.maxRequestBytes, 1_000_000));
+        const outcome = await ingestMetaWebhook({
+          rawBody,
+          signature: req.headers['x-hub-signature-256'],
+          config,
+          repository: databaseRuntime?.metaInboundRepository,
+          ownerUserId,
+        });
+        return json(res, outcome.status, outcome.body);
+      } catch (error) {
+        const known = error?.code === 'META_ASSET_NOT_PROVISIONED'
+          ? { status: 503, code: error.code }
+          : error?.code === 'META_REPLAY_PAYLOAD_MISMATCH'
+            ? { status: 409, code: error.code }
+            : { status: 500, code: 'META_INTAKE_FAILED' };
+        return json(res, known.status, { error: known.code });
+      }
+    }
+
+    if (url.pathname === '/api/owner/meta/status' && method === 'GET') {
+      const actor = platformOwnerActor(req, res);
+      if (!actor) return;
+      return json(res, 200, {
+        mode: metaOperationMode(config),
+        intakeEnabled: config.metaIntakeEnabled === true,
+        outboundEnabled: config.metaOutboundEnabled === true,
+        killSwitch: config.metaKillSwitch !== false,
+        databaseReady: Boolean(databaseRuntime?.metaInboundRepository),
+        assetsConfigured: Boolean(
+          config.metaAppId
+          && config.metaBusinessId
+          && config.metaPageId
+          && config.metaInstagramAccountId
+        ),
+        webhookConfigured: Boolean(config.metaAppSecret && config.metaWebhookVerifyToken),
+      });
+    }
+
+    if (url.pathname === '/api/owner/meta/conversations' && method === 'GET') {
+      const actor = platformOwnerActor(req, res);
+      if (!actor) return;
+      if (!databaseRuntime?.metaInboundRepository) {
+        return json(res, 503, { error: 'META_INBOX_NOT_READY' });
+      }
+      try {
+        const conversations = await databaseRuntime.metaInboundRepository.listConversations(actor.userId, {
+          limit: Number(url.searchParams.get('limit') || 50),
+          beforeUpdatedAt: url.searchParams.get('beforeUpdatedAt'),
+          beforeId: url.searchParams.get('beforeId'),
+        });
+        return json(res, 200, { conversations });
+      } catch {
+        return json(res, 400, { error: 'META_INBOX_QUERY_INVALID' });
+      }
+    }
+
+    const metaConversation = url.pathname.match(/^\/api\/owner\/meta\/conversations\/([0-9a-f-]+)$/i);
+    if (metaConversation && method === 'GET') {
+      const actor = platformOwnerActor(req, res);
+      if (!actor) return;
+      if (!databaseRuntime?.metaInboundRepository) {
+        return json(res, 503, { error: 'META_INBOX_NOT_READY' });
+      }
+      try {
+        const conversation = await databaseRuntime.metaInboundRepository.getConversation(
+          actor.userId,
+          decodeURIComponent(metaConversation[1]),
+        );
+        return conversation
+          ? json(res, 200, conversation)
+          : notFound(res, 'Meta conversation not found.');
+      } catch {
+        return json(res, 400, { error: 'META_INBOX_QUERY_INVALID' });
+      }
     }
 
     if (url.pathname === '/api/internal/card-pricing' && method === 'POST') {

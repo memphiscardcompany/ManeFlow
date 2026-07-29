@@ -30,6 +30,20 @@ This record contains no secrets, access tokens, client tokens, verification toke
 - Attachment URLs require HTTPS and an exact configured host allowlist on the initial URL and every redirect.
 - Changed drafts, non-owner actors, disabled outbound, exhausted retries, and replayed queue transitions fail closed.
 - PostgreSQL owner-only tables use forced row-level security and idempotency constraints.
+- Signed inbound events are normalized without synthetic provider IDs or timestamps.
+- Durable inbound persistence is set-based, replay-safe, owner-scoped, and audit-chained.
+- Conversation listing uses bounded keyset pagination instead of unbounded offset scans.
+- High-throughput inbound, conversation, message, draft, and outbound queue access paths have explicit indexes.
+
+## Implemented but not live
+
+- The canonical API contains a signed webhook challenge and intake route.
+- Accepted events can be persisted to durable owner-isolated conversation state.
+- Owner-only conversation status, list, and detail routes are present and fail closed through immutable owner authority, MFA, and recent reauthentication.
+- The Evidence-Bounded Selective Matcher can attach conservative recognition evidence to later processing without treating vector similarity as observed identity evidence.
+- Durable outbound jobs support leases, fencing, bounded retries, terminal ambiguous-delivery state, and exact provider-message recording.
+
+These controls are staging foundations. There is no verified public webhook deployment, production Meta token, background conversation worker, production attachment retriever, live owner-console session with enrolled MFA, or real outbound provider round trip. The Meta subsystem must not be described as live.
 
 ## Release-blocking evidence still required
 
@@ -45,6 +59,8 @@ This record contains no secrets, access tokens, client tokens, verification toke
 10. Prove ordinary ManeFlow users cannot discover or invoke any Meta route, API, queue, search, cache, export, notification, or storage object.
 11. Prove the kill switch and token/session revocation halt processing and outbound actions.
 12. Confirm `/release` metadata matches the deployed canonical commit.
+13. Add the durable background worker, bounded provider attachment retrieval, dead-letter inspection, and delivery-echo reconciliation.
+14. Enroll and verify Joshua's owner MFA and recent-reauthentication path without weakening the current fail-closed gate.
 
 ## Safe current mode
 

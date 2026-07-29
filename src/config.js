@@ -117,6 +117,6 @@ export function loadConfig(env = process.env) {
     webReleaseId: String(env.MANEFLOW_WEB_RELEASE_ID || env.WEB_RELEASE_ID || '').trim(),
     apiReleaseId: String(env.MANEFLOW_API_RELEASE_ID || env.API_RELEASE_ID || '').trim(),
     visionReleaseId: String(env.MANEFLOW_VISION_RELEASE_ID || env.VISION_RELEASE_ID || '').trim(),
-    migrationVersion: String(env.MANEFLOW_MIGRATION_VERSION || env.MIGRATION_VERSION || '005').trim(),
+    migrationVersion: String(env.MANEFLOW_MIGRATION_VERSION || env.MIGRATION_VERSION || '007').trim(),
   };
 }

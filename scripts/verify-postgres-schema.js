@@ -105,11 +105,35 @@ try {
   `);
   if (!queueIndex.rowCount) throw new Error('Catalog embedding queue work index is missing.');
 
+  const requiredOperationalIndexes = [
+    'manebrain_webhook_queue_idx',
+    'manebrain_conversation_owner_cursor_idx',
+    'manebrain_messages_conversation_cursor_idx',
+    'manebrain_drafts_conversation_version_idx',
+    'manebrain_outbound_queue_idx',
+  ];
+  const operationalIndexes = await pool.query(`
+    SELECT indexname
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = ANY($1::text[])
+  `, [requiredOperationalIndexes]);
+  const foundOperationalIndexes = new Set(
+    operationalIndexes.rows.map((row) => row.indexname),
+  );
+  const missingOperationalIndexes = requiredOperationalIndexes.filter(
+    (name) => !foundOperationalIndexes.has(name),
+  );
+  if (missingOperationalIndexes.length) {
+    throw new Error(`Missing operational indexes: ${missingOperationalIndexes.join(', ')}`);
+  }
+
   console.log(JSON.stringify({
     ok: true,
     pgvectorVersion: extension.rows[0].extversion,
     tables: requiredRelations,
     hnswIndexes: hnsw.rows.map((row) => row.indexname),
+    operationalIndexes: [...foundOperationalIndexes].sort(),
     runtimeRole: { canLogin: role.rolcanlogin, bypassRls: role.rolbypassrls },
   }, null, 2));
 } finally {
