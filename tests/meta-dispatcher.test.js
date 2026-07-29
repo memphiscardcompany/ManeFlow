@@ -25,6 +25,7 @@ function config(overrides = {}) {
     metaInstagramAccessToken: 'ig-token',
     metaPageId: 'page-1',
     metaInstagramAccountId: 'ig-1',
+    metaOutboundChannels: ['messenger', 'instagram_dm'],
     metaMaxDispatchBatch: 10,
     ...overrides,
   };
