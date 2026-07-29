@@ -57,6 +57,7 @@ export class DatabaseRuntime {
       this.metaInboundRepository = new MetaInboundRepository(this.pool);
       this.metaOutboundRepository = new MetaOutboundRepository(this.pool);
       this.metaDeliveryRepository = new MetaDeliveryRepository(this.pool);
+      this.metaInboundRepository.reconcileEchoes = this.metaDeliveryRepository.reconcileEchoes.bind(this.metaDeliveryRepository);
       await this.pool.query('SELECT 1 AS ok');
       this.initializationError = null;
       return this;
