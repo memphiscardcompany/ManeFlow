@@ -3,8 +3,9 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=4321
 
-COPY package.json ./
-RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
+    && npm cache clean --force
 
 COPY server.js ./
 COPY src ./src
@@ -13,7 +14,8 @@ COPY integrations ./integrations
 COPY db ./db
 COPY scripts ./scripts
 
-RUN mkdir -p /app/.runtime && chown -R node:node /app
+RUN mkdir -p /app/.runtime /var/lib/maneflow/scan-jobs \
+    && chown -R node:node /app /var/lib/maneflow
 USER node
 
 EXPOSE 4321
