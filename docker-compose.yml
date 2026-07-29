@@ -65,11 +65,20 @@ services:
       RELEASE_CHANNEL: private-beta
       HOST: 0.0.0.0
       PORT: 4321
-      PUBLIC_BASE_URL: http://localhost:4321
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:4321}
       STORAGE_MODE: postgres
       DATABASE_URL: postgresql://maneflow_app:${MANEFLOW_DATABASE_APP_PASSWORD:-maneflow-local-app-change-me}@postgres:5432/maneflow
       REDIS_URL: redis://redis:6379/0
       MANEFLOW_VISION_WORKER_URL: http://vision:8741
+      MANEFLOW_HTTP_REQUEST_TIMEOUT_MS: ${MANEFLOW_HTTP_REQUEST_TIMEOUT_MS:-180000}
+      MANEFLOW_SCAN_JOB_DIR: /app/.runtime/scan-jobs
+      MANEFLOW_SCAN_JOB_STORAGE_DURABLE: "true"
+      MANEFLOW_SCAN_JOB_MAX_ITEMS: ${MANEFLOW_SCAN_JOB_MAX_ITEMS:-1000}
+      MANEFLOW_SCAN_JOB_MAX_ITEM_BYTES: ${MANEFLOW_SCAN_JOB_MAX_ITEM_BYTES:-20000000}
+      MANEFLOW_SCAN_JOB_CONCURRENCY: ${MANEFLOW_SCAN_JOB_CONCURRENCY:-2}
+      MANEFLOW_SCAN_JOB_MAX_ATTEMPTS: ${MANEFLOW_SCAN_JOB_MAX_ATTEMPTS:-2}
+      MANEFLOW_SCAN_JOB_RETENTION_HOURS: ${MANEFLOW_SCAN_JOB_RETENTION_HOURS:-24}
+      MANEFLOW_SCAN_JOB_RETRY_BACKOFF_MS: ${MANEFLOW_SCAN_JOB_RETRY_BACKOFF_MS:-1000}
       MANEFLOW_DEMO_MODE: ${MANEFLOW_DEMO_MODE:-true}
       MANEFLOW_ALLOW_GUEST_WRITES: ${MANEFLOW_ALLOW_GUEST_WRITES:-false}
       MANEFLOW_ALLOW_PUBLIC_SIGNUPS: ${MANEFLOW_ALLOW_PUBLIC_SIGNUPS:-false}
@@ -79,6 +88,8 @@ services:
       EBAY_OAUTH_STATE_SECRET: ${EBAY_OAUTH_STATE_SECRET:?Set EBAY_OAUTH_STATE_SECRET}
     env_file:
       - .env
+    volumes:
+      - maneflow_scan_jobs:/app/.runtime/scan-jobs
     ports:
       - "4321:4321"
     depends_on:
@@ -101,3 +112,4 @@ volumes:
   maneflow_postgres:
   maneflow_redis:
   maneflow_vision_data:
+  maneflow_scan_jobs:
