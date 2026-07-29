@@ -86,6 +86,12 @@ export function clearSessionCookie(config) {
 
 export function sanitizeUser(user) {
   if (!user) return null;
-  const { passwordHash, passwordSalt, ...safe } = user;
+  const {
+    passwordHash,
+    passwordSalt,
+    ownerMfa,
+    ownerMfaEnrollment,
+    ...safe
+  } = user;
   return safe;
 }
