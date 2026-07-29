@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#07090d">
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <title>ManeFlow — Owner Meta Console</title>
+  <style>
+    body{margin:0;background:#07090d;color:#f5efe4;min-height:100vh}.owner-shell{width:min(1440px,calc(100% - 28px));margin:0 auto;padding:22px 0 80px}.owner-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:20px}.owner-head h1{font-size:clamp(2rem,5vw,3.6rem);margin:.2rem 0}.owner-head p{max-width:820px;color:#b9b0a3;line-height:1.55}.owner-grid{display:grid;grid-template-columns:minmax(290px,.42fr) minmax(0,1fr);gap:16px}.stack{display:grid;gap:14px}.owner-panel{background:#11100f;border:1px solid #2c2823;border-radius:18px;padding:17px;min-width:0}.owner-panel h2,.owner-panel h3{margin:.2rem 0 .75rem}.status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.status-card{background:#090909;border:1px solid #2d2923;border-radius:12px;padding:11px}.status-card small{display:block;color:#968d80}.status-card strong{display:block;margin-top:3px;overflow-wrap:anywhere}.status-good{color:#aee0b2}.status-warn{color:#f0cf78}.status-bad{color:#ffaaa5}.owner-form{display:grid;gap:9px}.owner-form label{display:grid;gap:5px;color:#c7bdaf}.owner-form input,.owner-form textarea,.owner-form select{width:100%;box-sizing:border-box;background:#08090b;border:1px solid #3b352e;color:#f5efe4;border-radius:10px;padding:11px;font:inherit}.owner-form textarea{min-height:115px;resize:vertical}.actions{display:flex;gap:9px;flex-wrap:wrap}.button[disabled]{opacity:.45;cursor:not-allowed}.notice-owner{border:1px solid #4a4032;background:#17130d;color:#d8c79e;border-radius:11px;padding:11px;line-height:1.45}.notice-owner.error{border-color:#774747;background:#1b1010;color:#ffc0bc}.notice-owner.success{border-color:#44664a;background:#0d1710;color:#bce6c1}.recovery-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;background:#08090b;border:1px solid #3b352e;border-radius:12px;padding:12px}.recovery-list code{font-size:.92rem}.console-grid{display:grid;grid-template-columns:minmax(260px,.35fr) minmax(0,1fr);gap:13px}.list-box{display:grid;gap:8px;max-height:650px;overflow:auto}.conversation-button,.job-card{width:100%;text-align:left;background:#090909;border:1px solid #302b25;color:inherit;border-radius:12px;padding:11px}.conversation-button{cursor:pointer}.conversation-button.active{border-color:#f1cb6a}.conversation-button strong,.conversation-button small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.conversation-button small,.muted{color:#9d9487}.message-list{display:grid;gap:9px;max-height:420px;overflow:auto}.message{border:1px solid #302b25;border-radius:12px;padding:11px;background:#090909}.message.outbound{margin-left:10%;border-color:#5c4f31}.message.inbound{margin-right:10%}.message small{color:#9e9588}.attachment-chip{display:inline-block;border:1px solid #514839;border-radius:999px;padding:3px 8px;margin:5px 4px 0 0;font-size:.78rem}.draft-card{border:1px solid #423a2f;border-radius:12px;padding:11px;margin-top:9px;background:#0b0b0b}.draft-card.selected{border-color:#f1cb6a}.draft-card pre{white-space:pre-wrap;font:inherit}.job-card{margin-top:8px}.job-card strong,.job-card small{display:block}.job-card small{color:#9d9487}.split{display:grid;grid-template-columns:1fr 1fr;gap:12px}.hidden{display:none!important}@media(max-width:980px){.owner-grid,.console-grid{grid-template-columns:1fr}}@media(max-width:620px){.owner-head{flex-direction:column}.status-grid,.split,.recovery-list{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="owner-shell">
+    <header class="owner-head">
+      <div>
+        <div class="eyebrow">Joshua Chappell · private operations</div>
+        <h1>ManeBrain Meta Console</h1>
+        <p>Review Facebook and Instagram conversations, create evidence-bounded drafts, approve exact text, and inspect delivery state. No reply is generated, approved, queued, or sent automatically.</p>
+      </div>
+      <div class="actions"><a class="button ghost" href="/#/account">Account</a><button id="refresh-all" class="button" type="button">Refresh</button></div>
+    </header>
+
+    <div class="owner-grid">
+      <aside class="stack">
+        <section class="owner-panel">
+          <h2>Owner security</h2>
+          <div id="security-status" class="status-grid"></div>
+          <div id="security-message"></div>
+        </section>
+
+        <section id="enrollment-panel" class="owner-panel hidden">
+          <h2>Enroll authenticator</h2>
+          <form id="enroll-form" class="owner-form">
+            <label>Current password<input name="password" type="password" autocomplete="current-password" required></label>
+            <button class="button primary" type="submit">Create enrollment secret</button>
+          </form>
+          <div id="enrollment-secret" class="hidden"></div>
+          <form id="confirm-enrollment-form" class="owner-form hidden">
+            <label>Six-digit authenticator code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required></label>
+            <button class="button primary" type="submit">Confirm and enable MFA</button>
+          </form>
+        </section>
+
+        <section id="reauth-panel" class="owner-panel hidden">
+          <h2>Recent reauthentication</h2>
+          <p class="muted">Required before drafts, approvals, queueing, dispatch, or recovery-code changes.</p>
+          <form id="reauth-form" class="owner-form">
+            <label>Current password<input name="password" type="password" autocomplete="current-password" required></label>
+            <label>Authenticator or recovery code<input name="code" autocomplete="one-time-code" required></label>
+            <button class="button primary" type="submit">Verify owner</button>
+          </form>
+        </section>
+
+        <section id="recovery-panel" class="owner-panel hidden">
+          <h2>Recovery codes</h2>
+          <p class="muted">Regeneration invalidates every prior recovery code and requires a current password and second factor.</p>
+          <form id="recovery-form" class="owner-form">
+            <label>Current password<input name="password" type="password" autocomplete="current-password" required></label>
+            <label>Authenticator or recovery code<input name="code" autocomplete="one-time-code" required></label>
+            <button class="button" type="submit">Regenerate codes</button>
+          </form>
+        </section>
+
+        <section class="owner-panel">
+          <h2>Meta release boundary</h2>
+          <div id="meta-status" class="status-grid"></div>
+          <div id="meta-message"></div>
+        </section>
+      </aside>
+
+      <section class="stack">
+        <section class="owner-panel">
+          <div class="panel-title"><div><div class="eyebrow">Unified queue</div><h2>Conversations</h2></div><button id="load-conversations" class="button" type="button">Reload queue</button></div>
+          <div class="console-grid">
+            <div id="conversation-list" class="list-box"><div class="notice-owner">Complete owner MFA to load private conversations.</div></div>
+            <div>
+              <div id="conversation-detail"><div class="notice-owner">Select a conversation to review its messages and drafts.</div></div>
+              <section id="draft-controls" class="owner-panel hidden" style="margin-top:12px">
+                <h3>Draft response</h3>
+                <form id="draft-form" class="owner-form">
+                  <label>Exact draft text<textarea name="text" maxlength="4000" required></textarea></label>
+                  <div class="actions"><button class="button" type="submit">Save manual draft</button><button id="generate-draft" class="button" type="button">Generate evidence-bounded draft</button></div>
+                </form>
+                <div id="draft-list"></div>
+                <form id="approve-form" class="owner-form hidden">
+                  <label>Exact approved text<textarea name="approvedText" maxlength="4000" required></textarea></label>
+                  <button class="button primary" type="submit">Approve exact text and hold</button>
+                </form>
+                <div id="approved-job"></div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="owner-panel">
+          <div class="panel-title"><div><div class="eyebrow">Delivery evidence</div><h2>Outbound jobs</h2></div><div class="actions"><select id="outbound-filter" aria-label="Filter outbound jobs"><option value="">All states</option><option>HELD_POLICY_REVIEW</option><option>SEND_QUEUED</option><option>RETRY_WAIT</option><option>SENT</option><option>SEND_FAILED</option><option>DELIVERY_UNKNOWN</option><option>DEAD_LETTER</option></select><button id="refresh-outbound" class="button" type="button">Reload</button></div></div>
+          <div id="outbound-counts" class="status-grid"></div>
+          <div id="outbound-list" class="list-box"></div>
+          <div class="notice-owner" style="margin-top:12px">Provider acceptance, signed provider echo, and final delivery are separate states. Ambiguous outcomes are not automatically retried.</div>
+          <div class="actions" style="margin-top:12px"><button id="dispatch-batch" class="button primary" type="button" disabled>Dispatch owner-approved queue</button></div>
+        </section>
+      </section>
+    </div>
+
+    <div id="global-message" aria-live="polite"></div>
+  </main>
+  <script type="module" src="/owner-meta.js"></script>
+</body>
+</html>
