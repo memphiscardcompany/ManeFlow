@@ -80,6 +80,10 @@ export async function ingestMetaWebhook({
     events: acceptedEvents,
     payloadSha256: payloadSha256(bytes),
   });
+  const echoes = acceptedEvents.filter((event) => event.isEcho === true);
+  if (echoes.length && typeof repository.reconcileEchoes === 'function') {
+    await repository.reconcileEchoes(ownerUserId, echoes);
+  }
   return {
     status: 202,
     body: {
