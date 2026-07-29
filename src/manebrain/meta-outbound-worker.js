@@ -1,13 +1,16 @@
 import { MetaGraphClient } from './meta-graph-client.js';
+import { loadMetaOutboundDispatchContext } from './meta-outbound-context.js';
 
 export class MetaOutboundWorker {
-  constructor({ repository, config = {}, graphClient = null } = {}) {
+  constructor({ repository, config = {}, graphClient = null, contextLoader = loadMetaOutboundDispatchContext } = {}) {
     if (!repository || typeof repository.claimNext !== 'function') {
       throw new TypeError('MetaOutboundWorker requires a MetaOutboundRepository-compatible repository.');
     }
+    if (typeof contextLoader !== 'function') throw new TypeError('MetaOutboundWorker requires a context loader.');
     this.repository = repository;
     this.config = config;
     this.graphClient = graphClient || new MetaGraphClient(config);
+    this.contextLoader = contextLoader;
   }
 
   dispatchAllowed() {
@@ -23,11 +26,13 @@ export class MetaOutboundWorker {
     }
 
     const reconciled = await this.repository.reconcileExpiredLeases(ownerUserId, { limit: 100 });
-    const job = await this.repository.claimNext(ownerUserId, { dispatchAllowed: true });
-    if (!job) return { status: 'IDLE', reconciled: reconciled.length };
+    const claimed = await this.repository.claimNext(ownerUserId, { dispatchAllowed: true });
+    if (!claimed) return { status: 'IDLE', reconciled: reconciled.length };
 
+    let job = claimed;
     let result;
     try {
+      job = await this.contextLoader(this.repository, ownerUserId, claimed);
       result = await this.graphClient.dispatchApprovedReply(job);
     } catch (error) {
       result = {
@@ -39,28 +44,28 @@ export class MetaOutboundWorker {
 
     if (result.outcome === 'accepted') {
       const completed = await this.repository.completeAccepted(ownerUserId, {
-        jobId: job.id,
-        leaseToken: job.lease_token,
+        jobId: claimed.id,
+        leaseToken: claimed.lease_token,
         providerMessageId: result.providerMessageId,
         responseMetadata: result.responseMetadata,
       });
-      return { status: 'SENT', jobId: job.id, providerMessageId: result.providerMessageId, completed };
+      return { status: 'SENT', jobId: claimed.id, providerMessageId: result.providerMessageId, completed };
     }
     if (result.outcome === 'outcome_unknown') {
       const completed = await this.repository.completeOutcomeUnknown(ownerUserId, {
-        jobId: job.id,
-        leaseToken: job.lease_token,
+        jobId: claimed.id,
+        leaseToken: claimed.lease_token,
         errorCode: result.errorCode,
         responseMetadata: result.responseMetadata,
       });
-      return { status: 'DELIVERY_UNKNOWN', jobId: job.id, completed };
+      return { status: 'DELIVERY_UNKNOWN', jobId: claimed.id, completed };
     }
     const completed = await this.repository.completeRejectedBeforeAcceptance(ownerUserId, {
-      jobId: job.id,
-      leaseToken: job.lease_token,
+      jobId: claimed.id,
+      leaseToken: claimed.lease_token,
       errorCode: result.errorCode,
       responseMetadata: result.responseMetadata,
     });
-    return { status: completed.status, jobId: job.id, completed };
+    return { status: completed.status, jobId: claimed.id, completed };
   }
 }
