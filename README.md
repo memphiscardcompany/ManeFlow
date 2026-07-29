@@ -2,6 +2,12 @@
 
 ManeFlow is Memphis Card Company's unified card-intelligence platform for collectors, dealers, and card shops. This release preserves the complete ManeFlow v2.5 business interface while adding the production database, local OCR, vector-search, imaging, bulk-intake, market-provider, and security foundations developed afterward.
 
+**Publisher:** Memphis Card Company LLC
+
+**Contact:** memphiscardcompany@gmail.com
+
+**Site:** https://memphiscardcompany.com
+
 ## Fastest Windows beta test
 
 1. Extract the entire ZIP to a normal writable folder.
@@ -201,3 +207,9 @@ configuration and are never included in release archives.
 
 
 - `docs/RECOGNITION_BENCHMARK_RESULTS_2.16.md`
+- `docs/SOURCE-PACKAGES.md`
+- `docs/UPGRADE-COORDINATION.md`
+
+## Coordination
+
+This private repository is the canonical source of truth for reviewed ManeFlow and ManeBrain work. See `docs/UPGRADE-COORDINATION.md` for collaboration rules and `provenance/SOURCE_RECONCILIATION_2026-07-28.md` for recovered-source lineage.
