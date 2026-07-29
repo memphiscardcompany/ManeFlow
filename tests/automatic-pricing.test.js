@@ -109,7 +109,7 @@ test('ManeFlow automatically imports authorized completed sales and excludes act
   assert.ok(store.state.auditLog.some((entry) => entry.type === 'automatic_pricing_refresh_completed'));
 });
 
-test('automatic pricing fails closed to existing evidence when provider access is not enabled', async (t) => {
+test('automatic pricing uses fresh stored completed-sale evidence when provider access is not enabled', async (t) => {
   const { engine, store } = await testContext(t);
   await store.upsertCustomSales([
     {
@@ -119,7 +119,7 @@ test('automatic pricing fails closed to existing evidence when provider access i
       authorizationBasis: 'ebay_api',
       allInPrice: 44,
       valuationUse: true,
-      importedAt: '2026-07-25T12:00:00.000Z',
+      importedAt: '2026-07-29T10:00:00.000Z',
     },
   ]);
   const result = await engine.priceCard(card, {
