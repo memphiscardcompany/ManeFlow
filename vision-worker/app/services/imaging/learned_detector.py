@@ -8,6 +8,12 @@ import numpy as np
 from app.core.config import settings
 from app.services.imaging.card_detector import CardDetection
 from app.services.imaging.rectify import rectify_quadrilateral
+from maneflow_vision.gpu.runtime import (
+    ComputeDecision,
+    configure_torch_memory,
+    resolve_compute_device,
+    run_with_oom_recovery,
+)
 
 
 _ALLOWED_KINDS = {
@@ -45,6 +51,16 @@ class LearnedCardDetector:
             ) from exc
         self.path = path
         self.model = YOLO(str(path))
+        self.compute_decision = resolve_compute_device(
+            "card_detection",
+            gpu_device_id=settings.maneflow_gpu_device_id,
+            allow_cpu_fallback=settings.maneflow_gpu_allow_cpu_fallback,
+        )
+        try:
+            import torch
+            configure_torch_memory(torch, self.compute_decision)
+        except ImportError:
+            pass
 
     @staticmethod
     def _polygon_from_mask(mask_xy: object) -> np.ndarray | None:
@@ -56,14 +72,30 @@ class LearnedCardDetector:
         rect = cv2.minAreaRect(points)
         return cv2.boxPoints(rect).astype(np.float32)
 
-    def detect(self, image: np.ndarray) -> list[CardDetection]:
-        result_list = self.model.predict(
+    def _predict(self, image: np.ndarray, decision: ComputeDecision):
+        return self.model.predict(
             source=image,
             conf=settings.card_detector_confidence,
             iou=settings.card_detector_iou,
             max_det=settings.max_detections_per_image,
+            device=decision.ultralytics_device,
+            half=bool(settings.maneflow_gpu_mixed_precision and decision.is_cuda),
             verbose=False,
         )
+
+    def readiness(self) -> dict[str, object]:
+        return {
+            "model_path": str(self.path),
+            "compute": self.compute_decision.to_dict(),
+        }
+
+    def detect(self, image: np.ndarray) -> list[CardDetection]:
+        result_list, actual_decision = run_with_oom_recovery(
+            lambda decision: self._predict(image, decision),
+            self.compute_decision,
+            allow_cpu_fallback=settings.maneflow_gpu_allow_cpu_fallback,
+        )
+        self.compute_decision = actual_decision
         if not result_list:
             return []
         result = result_list[0]
