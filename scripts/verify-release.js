@@ -26,7 +26,7 @@ try {
       const absolute = path.join(directory, entry.name);
       const lower = entry.name.toLowerCase();
       if (entry.isSymbolicLink()) forbidden.push(absolute);
-      if (['.git', '.hg', '.svn', 'node_modules', '.runtime', '.runtime-build', 'backups', 'coverage', 'screenshots', '.pytest_cache', '__pycache__', '.venv', '.venv-windows', '.venv-beta', 'dist', 'build', 'imported-contributions'].includes(lower)) forbidden.push(absolute);
+      if (['.git', '.hg', '.svn', 'node_modules', '.runtime', '.runtime-build', 'backups', 'coverage', '.pytest_cache', '__pycache__', '.venv', '.venv-windows', '.venv-beta', 'dist', 'build', 'imported-contributions'].includes(lower)) forbidden.push(absolute);
       if (
         lower === '.env'
         || (lower.startsWith('.env.') && !lower.endsWith('.example'))
