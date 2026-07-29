@@ -116,6 +116,22 @@ const scanJobQueue = await new ScanJobQueue({
   processor: processQueuedScan,
 }).init();
 
+if (typeof store.deleteUser === 'function') {
+  const deleteUser = store.deleteUser.bind(store);
+  store.deleteUser = async (userId) => {
+    const ownedJobs = (store.state.scanJobs || []).filter((job) => job.userId === userId);
+    for (const job of ownedJobs) {
+      await scanJobQueue.cancelJob(userId, job.id).catch(() => {});
+    }
+    store.state.scanJobs = (store.state.scanJobs || []).filter((job) => job.userId !== userId);
+    await Promise.allSettled(ownedJobs.map((job) => fs.rm(
+      path.join(config.scanJobUploadDirectory, job.id),
+      { recursive: true, force: true },
+    )));
+    return deleteUser(userId);
+  };
+}
+
 const coreRouter = createRouter({ config, cards, sales, providers, store, cache, runtimeValidation, storage, ocrService, databaseRuntime });
 const metaOwnerRouter = createMetaOwnerRouter({ config, store, databaseRuntime });
 const scanJobRouter = createScanJobRouter({ config, store, queue: scanJobQueue });
