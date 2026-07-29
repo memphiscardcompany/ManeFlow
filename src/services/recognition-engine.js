@@ -1,4 +1,9 @@
 import { identifyCard } from './identification.js';
+import {
+  applyRecognitionCandidateScope,
+  buildRecognitionEvidenceLedger,
+  evaluateRecognitionDecision,
+} from './recognition-decision.js';
 import { evaluateScanConfidence } from './scan-confidence.js';
 import { clamp, normalizeText } from './utils.js';
 
@@ -168,6 +173,9 @@ function fallbackRegion({ body = {}, vision = null, scene = null } = {}) {
     needsBackImage: source.needsBackImage ?? !has(body.backDataUrl),
     needsCertCloseup: source.needsCertCloseup ?? null,
     overallConfidence: source.confidence ?? source.overallConfidence ?? null,
+    provider: clean(source.provider || source.evidenceProvider, 160) || null,
+    evidenceSource: clean(source.evidenceSource, 160) || null,
+    evidenceRole: clean(source.evidenceRole, 80) || null,
   };
 }
 
@@ -296,6 +304,11 @@ function summarize(items = [], scene = {}) {
     acc[item.path] = (acc[item.path] || 0) + 1;
     return acc;
   }, {});
+  const selectiveCounts = items.reduce((acc, item) => {
+    const status = item.selectiveDecision?.status || 'unavailable';
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
   return {
     detectedCards: items.length,
     matchedCards: items.filter((item) => item.matches.length).length,
@@ -303,6 +316,7 @@ function summarize(items = [], scene = {}) {
     highValueConfirmation: items.filter((item) => item.scanConfidence.manualConfirmationReasons?.some((reason) => /high-value/i.test(reason))).length,
     averageScanConfidence: scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0,
     pathCounts,
+    selectiveCounts,
     sceneWarnings: safeArray(scene.warnings),
   };
 }
@@ -314,10 +328,14 @@ export function recognizeCardScene({
   vision = null,
   gradedCert = null,
   corrections = [],
+  candidateScope = null,
+  candidatePriors = [],
+  calibration = null,
   enrichCard = (card) => card,
 } = {}) {
   const scene = classifyRecognitionScene({ body, sceneAnalysis });
   const regions = detectedRegions({ body, sceneAnalysis, vision: vision || sceneAnalysis?.primaryCard, scene });
+  const candidateUniverse = applyRecognitionCandidateScope(cards, candidateScope);
   const useGlobalText = regions.length === 1;
   const items = regions.map((region, index) => {
     const regionVision = {
@@ -328,14 +346,14 @@ export function recognizeCardScene({
     };
     const regionCert = index === 0 ? gradedCert : null;
     const result = identifyCard({
-      cards,
+      cards: candidateUniverse.cards,
       imageName: body.imageName,
       manualText: regionQueryText(region, body, useGlobalText),
       ocrText: useGlobalText ? body.ocrText : safeArray(region.facts?.visibleText).join(' '),
       vision: regionVision,
       gradedCert: regionCert,
     });
-    const learnedMatches = applyCorrectionLearning(result.matches, cards, region, corrections, enrichCard);
+    const learnedMatches = applyCorrectionLearning(result.matches, candidateUniverse.cards, region, corrections, enrichCard);
     const candidateExact = Boolean(learnedMatches[0] && Number(learnedMatches[0].confidence || 0) >= 0.9 && topGap(learnedMatches) >= 0.08);
     const scanConfidence = evaluateScanConfidence({
       body: { ...body, gradedCert: regionCert },
@@ -345,6 +363,20 @@ export function recognizeCardScene({
     });
     const exact = Boolean(result.exact && candidateExact && !scanConfidence.needsManualConfirmation);
     const path = chooseRecognitionPath({ scene, region, matches: learnedMatches, confidence: scanConfidence });
+    const regionPriors = safeArray(candidatePriors).filter((prior) => !prior?.regionId || prior.regionId === region.regionId);
+    const evidence = buildRecognitionEvidenceLedger({
+      region: regionVision,
+      body,
+      gradedCert: regionCert,
+      candidatePriors: regionPriors,
+    });
+    const selectiveDecision = evaluateRecognitionDecision({
+      matches: learnedMatches,
+      evidence,
+      candidateScope,
+      scopeResult: candidateUniverse,
+      calibration,
+    });
     return {
       regionId: region.regionId || `region_${index + 1}`,
       index,
@@ -367,9 +399,13 @@ export function recognizeCardScene({
         title: candidateLabel(card),
         confidence: card.confidence ?? null,
         image: card.image || null,
+        catalogSource: card.catalogSource || null,
         rank: rank + 1,
       })),
       scanConfidence,
+      evidence,
+      selectiveDecision,
+      candidateScope: selectiveDecision.candidateScope,
       explanation: buildRegionExplanation({ scene, region, result, confidence: scanConfidence, path }),
       requiresManualConfirmation: scanConfidence.needsManualConfirmation,
       warnings: [...new Set([...safeArray(region.warnings), ...safeArray(scanConfidence.warnings)])],
@@ -388,6 +424,8 @@ export function recognizeCardScene({
       lowConfidenceRequiresConfirmation: true,
       highValueRequiresEliteConfidence: true,
       correctionsImproveFutureRanking: true,
+      evidenceBoundedDecisionAvailable: true,
+      automaticAcceptanceRequiresCalibration: true,
       imagesProcessedRemotely: Boolean(sceneAnalysis),
     },
     message: primary?.requiresManualConfirmation
