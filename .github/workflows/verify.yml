@@ -64,6 +64,55 @@ jobs:
           assert schema['title'] == 'ManeFlow dataset manifest record'
           PY
 
+  container-build:
+    name: container-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build application container from the exact commit
+        run: |
+          set -Eeuo pipefail
+          docker build --pull \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "maneflow-ci:${GITHUB_SHA}" \
+            .
+      - name: Build CPU-safe vision container from the exact commit
+        run: |
+          set -Eeuo pipefail
+          docker build --pull \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "maneflow-vision-ci:${GITHUB_SHA}" \
+            ./vision-worker
+      - name: Verify non-root runtime contracts
+        run: |
+          set -Eeuo pipefail
+          test "$(docker image inspect --format '{{.Config.User}}' "maneflow-ci:${GITHUB_SHA}")" = "node"
+          test "$(docker image inspect --format '{{.Config.User}}' "maneflow-vision-ci:${GITHUB_SHA}")" = "maneflow"
+      - name: Smoke-test packaged application source
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --entrypoint node "maneflow-ci:${GITHUB_SHA}" --check server.js
+          docker run --rm --entrypoint node "maneflow-ci:${GITHUB_SHA}" --check src/router.js
+      - name: Smoke-test packaged vision imports
+        run: |
+          set -Eeuo pipefail
+          docker run --rm \
+            --entrypoint python \
+            -e MANEFLOW_COMPUTE_DEVICE=cpu \
+            -e MANEFLOW_GPU_ALLOW_CPU_FALLBACK=false \
+            -e EMBEDDING_ENABLED=false \
+            -e CARD_DETECTOR_BACKEND=classical \
+            "maneflow-vision-ci:${GITHUB_SHA}" \
+            -c "from app.main import app; import maneflow_vision; assert app is not None; print('vision container import smoke passed')"
+      - name: Record image identities and sizes
+        run: |
+          set -Eeuo pipefail
+          docker image inspect \
+            --format '{{json .RepoTags}} {{json .Config.Labels}} {{.Size}}' \
+            "maneflow-ci:${GITHUB_SHA}" \
+            "maneflow-vision-ci:${GITHUB_SHA}"
+
   native-client:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
