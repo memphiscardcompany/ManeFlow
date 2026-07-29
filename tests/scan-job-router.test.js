@@ -149,18 +149,31 @@ test('users cannot inspect another account scan job and completed results remain
   const bobRead = await request(`/api/scan-jobs/${jobId}`, { headers: { cookie: bob.cookie } });
   assert.equal(bobRead.response.status, 404);
 
-  const dataUrl = `data:image/jpeg;base64,${Buffer.from('owner-image').toString('base64')}`;
+  const jpegBytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from('owner-image')]);
+  const dataUrl = `data:image/jpeg;base64,${jpegBytes.toString('base64')}`;
   const uploaded = await request(`/api/scan-jobs/${jobId}/items`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: aliceLogin.cookie, 'x-maneflow-csrf': aliceMe.body.csrfToken },
-    body: JSON.stringify({ itemKey: 'image-001', fileName: 'folder/card-001.jpg', dataUrl }),
+    body: JSON.stringify({
+      itemKey: 'image-001',
+      fileName: 'folder/card-001.jpg',
+      mimeType: 'image/jpeg',
+      size: jpegBytes.length,
+      dataUrl,
+    }),
   });
   assert.equal(uploaded.response.status, 201);
 
   const duplicate = await request(`/api/scan-jobs/${jobId}/items`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: aliceLogin.cookie, 'x-maneflow-csrf': aliceMe.body.csrfToken },
-    body: JSON.stringify({ itemKey: 'image-001', fileName: 'folder/card-001.jpg', dataUrl }),
+    body: JSON.stringify({
+      itemKey: 'image-001',
+      fileName: 'folder/card-001.jpg',
+      mimeType: 'image/jpeg',
+      size: jpegBytes.length,
+      dataUrl,
+    }),
   });
   assert.equal(duplicate.response.status, 200);
   assert.equal(duplicate.body.reused, true);
