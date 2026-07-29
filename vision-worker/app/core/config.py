@@ -71,6 +71,17 @@ class Settings(BaseSettings):
     embedding_channel_mean: tuple[float, float, float] = (0.5, 0.5, 0.5)
     embedding_channel_std: tuple[float, float, float] = (0.5, 0.5, 0.5)
 
+    # Central compute policy. Workload-specific provider fields remain for backward
+    # compatibility but explicit MANEFLOW_COMPUTE_DEVICE takes precedence.
+    maneflow_compute_device: str = "auto"
+    maneflow_gpu_device_id: int = 0
+    maneflow_gpu_memory_fraction: float = 0.85
+    maneflow_gpu_allow_cpu_fallback: bool = True
+    maneflow_gpu_mixed_precision: bool = True
+    maneflow_gpu_max_batch_size: str = "auto"
+    maneflow_gpu_execution_profile: str = "interactive"
+    maneflow_onnx_tensorrt_enabled: bool = False
+
     dev_database_path: str | None = None
     grouping_calibration_path: str | None = None
 
