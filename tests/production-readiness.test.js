@@ -18,6 +18,13 @@ async function makeStore() {
   return { store, dir };
 }
 
+function durableScanEnvironment() {
+  return {
+    MANEFLOW_SCAN_JOB_DIR: '/private/maneflow/scan-jobs',
+    MANEFLOW_SCAN_JOB_STORAGE_DURABLE: 'true',
+  };
+}
+
 test('production config validation fails closed for unsafe launch settings', () => {
   const config = loadConfig({ NODE_ENV: 'production', PUBLIC_BASE_URL: 'http://example.com' });
   const validation = validateRuntimeConfig(config, { NODE_ENV: 'production' });
@@ -39,6 +46,7 @@ test('production validation accepts configured PostgreSQL and internal service s
     DATABASE_URL: 'postgresql://maneflow_app:password@db.example.com/maneflow',
     MANEFLOW_DEMO_MODE: 'false',
     MANEFLOW_EXPOSE_DEV_TOKENS: 'false',
+    ...durableScanEnvironment(),
   });
   const validation = validateRuntimeConfig(config, { NODE_ENV: 'production' });
   assert.equal(validation.ok, true, validation.errors.join('; '));
@@ -61,6 +69,7 @@ test('production Meta outbound fails closed without owner, assets, tokens, versi
     MANEFLOW_EXPOSE_DEV_TOKENS: 'false',
     MANEBRAIN_META_OUTBOUND_ENABLED: 'true',
     MANEBRAIN_META_OUTBOUND_CHANNELS: '',
+    ...durableScanEnvironment(),
   };
   const blocked = validateRuntimeConfig(loadConfig(common), common);
   assert.equal(blocked.ok, false);
@@ -124,6 +133,7 @@ test('production Meta intake fails closed without signature, verification, owner
     MANEFLOW_DEMO_MODE: 'false',
     MANEFLOW_EXPOSE_DEV_TOKENS: 'false',
     MANEBRAIN_META_INTAKE_ENABLED: 'true',
+    ...durableScanEnvironment(),
   };
   const blocked = validateRuntimeConfig(loadConfig(env), env);
   assert.equal(blocked.ok, false);
