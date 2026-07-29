@@ -53,6 +53,16 @@ const coreRouter = createRouter({ config, cards, sales, providers, store, cache,
 const metaOwnerRouter = createMetaOwnerRouter({ config, store, databaseRuntime });
 const scanPipeline = createScanPipeline({ config, cards, sales, store, cache, ocrService, databaseRuntime });
 const scanJobRuntime = await createDurableScanJobRouter({ config, store, processor: scanPipeline });
+
+if (typeof store.deleteUser === 'function' && typeof scanJobRuntime.spool.deleteOwnerJobs === 'function') {
+  const deleteUser = store.deleteUser.bind(store);
+  store.deleteUser = async (userId) => {
+    const deleted = await deleteUser(userId);
+    if (deleted) await scanJobRuntime.spool.deleteOwnerJobs(userId);
+    return deleted;
+  };
+}
+
 const router = async (req, res) => {
   try {
     const metaHandled = await metaOwnerRouter(req, res);
@@ -70,7 +80,10 @@ const router = async (req, res) => {
 };
 const server = http.createServer(router);
 
-server.requestTimeout = 30_000;
+server.requestTimeout = Math.max(
+  30_000,
+  Math.min(600_000, Number(process.env.MANEFLOW_HTTP_REQUEST_TIMEOUT_MS || 180_000)),
+);
 server.headersTimeout = 35_000;
 server.keepAliveTimeout = 5_000;
 server.maxHeadersCount = 100;
@@ -93,7 +106,7 @@ function shutdown(signal) {
     ]);
     process.exit(0);
   });
-  setTimeout(() => process.exit(1), 5_000).unref();
+  setTimeout(() => process.exit(1), 10_000).unref();
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
