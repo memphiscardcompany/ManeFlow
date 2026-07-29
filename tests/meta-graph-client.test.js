@@ -149,11 +149,19 @@ test('network ambiguity and 2xx without message ID become outcome unknown', asyn
   });
 });
 
-test('account allowlist mismatch fails before any provider request', async () => {
+test('account allowlist mismatch is a permanent preflight rejection before any provider request', async () => {
   let called = false;
   const client = new MetaGraphClient(config(), {
     fetchImpl: async () => { called = true; return response(200, { message_id: 'unexpected' }); },
   });
-  await assert.rejects(client.send(baseJob({ provider_account_id: 'wrong-page' })), /allowlist/);
+  await assert.rejects(client.send(baseJob({ provider_account_id: 'wrong-page' })), (error) => {
+    assert.ok(error instanceof MetaGraphDispatchError);
+    assert.equal(error.code, 'META_GRAPH_PREFLIGHT_REJECTED');
+    assert.equal(error.certainty, 'rejected_before_acceptance');
+    assert.equal(error.retryable, false);
+    assert.equal(error.responseMetadata.preflight, true);
+    assert.match(error.cause?.message || '', /allowlist/);
+    return true;
+  });
   assert.equal(called, false);
 });
