@@ -67,12 +67,12 @@ function routeError(res, error) {
   const message = error instanceof Error ? error.message : String(error);
   const status = /not found/i.test(message) ? 404
     : /no longer accepting|cannot be|no failed items|upload at least/i.test(message) ? 409
-      : /limit|exceeds|unsupported|required|does not match/i.test(message) ? 400
+      : /limit|exceeds|unsupported|required|does not match|authorization/i.test(message) ? 400
         : 500;
   return json(res, status, {
     error: error?.code || 'SCAN_JOB_OPERATION_FAILED',
     message,
-  }, { 'cache-control': 'no-store' });
+  });
 }
 
 export async function createDurableScanJobRouter({ config, store, processor } = {}) {
@@ -136,6 +136,11 @@ export async function createDurableScanJobRouter({ config, store, processor } = 
     try {
       if (url.pathname === '/api/scan-jobs' && method === 'POST') {
         const body = await readJson(req, 100_000);
+        if (body.processingAuthorization !== true) {
+          const error = new Error('Explicit authorization to process these images is required.');
+          error.code = 'SCAN_IMAGE_AUTHORIZATION_REQUIRED';
+          throw error;
+        }
         const idempotencyKey = String(req.headers['idempotency-key'] || body.idempotencyKey || '').trim();
         const result = await spool.createJob({
           ownerUserId: actor.userId,
