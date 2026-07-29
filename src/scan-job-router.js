@@ -196,8 +196,20 @@ export function createScanJobRouter({ config, store, queue }) {
       }
 
       if (startMatch && method === 'POST') {
+        const jobId = decodeURIComponent(startMatch[1]);
+        const current = queue.getJob(actor.userId, jobId);
+        if (current.uploadedCount !== current.totalItems) {
+          throw new ScanJobError(
+            `Upload is incomplete: ${current.uploadedCount} of ${current.totalItems} images are stored.`,
+            {
+              code: 'SCAN_JOB_UPLOAD_INCOMPLETE',
+              status: 409,
+              retryable: true,
+            },
+          );
+        }
         return json(res, 202, {
-          job: await queue.startJob(actor.userId, decodeURIComponent(startMatch[1])),
+          job: await queue.startJob(actor.userId, jobId),
         });
       }
 
