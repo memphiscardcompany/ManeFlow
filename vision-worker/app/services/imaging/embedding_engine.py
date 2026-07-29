@@ -11,6 +11,12 @@ import cv2
 import numpy as np
 
 from app.core.config import settings
+from maneflow_vision.gpu.runtime import (
+    ComputeDecision,
+    ComputeDeviceError,
+    preferred_onnx_providers,
+    resolve_compute_device,
+)
 
 LOGGER = logging.getLogger(__name__)
 _EXPECTED_DIMENSIONS = 1152
@@ -42,6 +48,11 @@ class EmbeddingResult:
     provider: str
     dimensions: int
     normalized: bool
+    requested_device: str = "auto"
+    selected_device: str = "cpu"
+    selection_reason: str = ""
+    fallback_used: bool = False
+    fallback_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -50,6 +61,11 @@ class EmbeddingResult:
             "provider": self.provider,
             "dimensions": self.dimensions,
             "normalized": self.normalized,
+            "requested_device": self.requested_device,
+            "selected_device": self.selected_device,
+            "selection_reason": self.selection_reason,
+            "fallback_used": self.fallback_used,
+            "fallback_reason": self.fallback_reason,
         }
 
 
@@ -61,6 +77,7 @@ class EmbeddingReadiness:
     model_path: str | None
     model_name: str
     providers: list[str]
+    compute: dict[str, Any] | None = None
     error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -71,6 +88,7 @@ class EmbeddingReadiness:
             "model_path": self.model_path,
             "model_name": self.model_name,
             "providers": self.providers,
+            "compute": self.compute,
             "error": self.error,
         }
 
@@ -92,51 +110,30 @@ def _load_onnxruntime() -> Any:
     return ort
 
 
-def _provider_configuration(ort: Any) -> list[Any]:
-    available = set(ort.get_available_providers())
-    requested = settings.embedding_execution_provider.strip().lower()
-    providers: list[Any] = []
-
-    def add(provider: str, options: dict[str, Any] | None = None) -> None:
-        if provider in available and all(
-            (entry[0] if isinstance(entry, tuple) else entry) != provider for entry in providers
-        ):
-            providers.append((provider, options or {}))
-
-    if requested in {"auto", "tensorrt"}:
-        add(
-            "TensorrtExecutionProvider",
-            {
-                "trt_fp16_enable": True,
-                "trt_engine_cache_enable": True,
-                "trt_engine_cache_path": str(settings.embedding_engine_cache_dir),
-                "trt_timing_cache_enable": True,
-                "trt_timing_cache_path": str(settings.embedding_engine_cache_dir),
-            },
+def _provider_configuration(ort: Any) -> tuple[list[Any], ComputeDecision]:
+    legacy = settings.embedding_execution_provider.strip().lower()
+    requested = settings.maneflow_compute_device
+    if requested.strip().lower() == "auto" and legacy in {"cpu", "cuda"}:
+        requested = legacy
+    try:
+        decision = resolve_compute_device(
+            "embedding",
+            requested_device=requested,
+            gpu_device_id=settings.maneflow_gpu_device_id,
+            allow_cpu_fallback=settings.maneflow_gpu_allow_cpu_fallback,
+            ort_module=ort,
         )
-    if requested in {"auto", "cuda", "tensorrt"}:
-        add(
-            "CUDAExecutionProvider",
-            {
-                "device_id": settings.embedding_gpu_device_id,
-                "arena_extend_strategy": "kNextPowerOfTwo",
-                "cudnn_conv_algo_search": "HEURISTIC",
-                "do_copy_in_default_stream": True,
-            },
+        providers = preferred_onnx_providers(
+            ort,
+            decision,
+            enable_tensorrt=(
+                settings.maneflow_onnx_tensorrt_enabled or legacy == "tensorrt"
+            ),
+            engine_cache_path=str(settings.embedding_engine_cache_dir),
         )
-    if requested in {"auto", "coreml"}:
-        add("CoreMLExecutionProvider", {"ModelFormat": "MLProgram", "MLComputeUnits": "ALL"})
-    if requested in {"auto", "directml", "dml"}:
-        add("DmlExecutionProvider", {"device_id": settings.embedding_gpu_device_id})
-    if requested in {"auto", "openvino"}:
-        add("OpenVINOExecutionProvider", {"device_type": "AUTO"})
-    add("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"})
-
-    if not providers:
-        raise EmbeddingEngineError(
-            f"No compatible ONNX Runtime execution provider is available for '{requested}'."
-        )
-    return providers
+        return providers, decision
+    except ComputeDeviceError as exc:
+        raise EmbeddingEngineError(str(exc)) from exc
 
 
 def _default_session_factory(model_path: str, providers: list[Any], ort: Any) -> InferenceSessionLike:
@@ -227,7 +224,6 @@ def _extract_vector(outputs: list[np.ndarray], output_meta: list[SessionOutput])
 
     value = np.asarray(selected, dtype=np.float32)
     if value.ndim >= 3:
-        # Dense token output: use the first token when present, otherwise mean-pool spatial tokens.
         value = value[0]
         if value.ndim == 2 and value.shape[-1] == _EXPECTED_DIMENSIONS:
             value = value[0] if value.shape[0] > 1 else value.reshape(-1)
@@ -261,6 +257,7 @@ class LocalEmbeddingEngine:
         self._session: InferenceSessionLike | None = None
         self._lock = threading.RLock()
         self._initialization_error: str | None = None
+        self._compute_decision: ComputeDecision | None = None
 
     @property
     def enabled(self) -> bool:
@@ -279,7 +276,7 @@ class LocalEmbeddingEngine:
 
             try:
                 ort = self._ort_module or _load_onnxruntime()
-                providers = _provider_configuration(ort)
+                providers, decision = _provider_configuration(ort)
                 factory = self._session_factory or _default_session_factory
                 session = factory(str(self._model_path), providers, ort)
                 inputs = session.get_inputs()
@@ -288,6 +285,7 @@ class LocalEmbeddingEngine:
                         f"Embedding model must expose exactly one image input; received {len(inputs)}."
                     )
                 self._session = session
+                self._compute_decision = decision
                 self._initialization_error = None
                 return session
             except Exception as exc:
@@ -307,12 +305,25 @@ class LocalEmbeddingEngine:
         vector = _extract_vector(outputs, session.get_outputs())
         providers = session.get_providers()
         provider = providers[0] if providers else "unknown"
+        decision = self._compute_decision or resolve_compute_device(
+            "embedding", cuda_available=provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}
+        )
+        actual_device = (
+            "cuda"
+            if provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}
+            else "cpu"
+        )
         return EmbeddingResult(
             vector=[float(value) for value in vector.tolist()],
             model_name=settings.embedding_model_name,
             provider=provider,
             dimensions=_EXPECTED_DIMENSIONS,
             normalized=True,
+            requested_device=decision.requested_device,
+            selected_device=actual_device,
+            selection_reason=decision.reason,
+            fallback_used=decision.fallback_used,
+            fallback_reason=decision.fallback_reason,
         )
 
     def readiness(self, *, initialize: bool = False) -> EmbeddingReadiness:
@@ -330,6 +341,7 @@ class LocalEmbeddingEngine:
             model_path=str(self._model_path) if self._model_path else None,
             model_name=settings.embedding_model_name,
             providers=providers,
+            compute=self._compute_decision.to_dict() if self._compute_decision else None,
             error=self._initialization_error,
         )
 

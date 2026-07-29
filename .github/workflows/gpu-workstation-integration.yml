@@ -1,0 +1,67 @@
+name: Owner GPU Workstation Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_benchmark:
+        description: Run configured local benchmark after diagnostics
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: owner-gpu-workstation
+  cancel-in-progress: false
+
+jobs:
+  gpu-integration:
+    if: github.repository_owner == 'memphiscardcompany' && github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, Windows, X64, maneflow-gpu]
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      MANEFLOW_COMPUTE_DEVICE: auto
+      MANEFLOW_GPU_ALLOW_CPU_FALLBACK: "false"
+      MANEFLOW_GPU_EXECUTION_PROFILE: benchmark
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          clean: false
+          persist-credentials: false
+      - name: Require the preconfigured private vision environment
+        run: |
+          if (-not (Test-Path '.venv-vision\Scripts\python.exe')) {
+            throw 'Private GPU runner is not provisioned. Create .venv-vision locally; this workflow will not install drivers or mutate the host automatically.'
+          }
+      - name: Record non-destructive GPU environment evidence
+        run: |
+          .\.venv-vision\Scripts\python.exe -m pip check
+          Push-Location vision-worker
+          ..\.venv-vision\Scripts\python.exe -m maneflow_vision.gpu.doctor --json-out ..\artifacts\gpu-environment.json --markdown-out ..\docs\GPU_ENVIRONMENT_REPORT.md
+          Pop-Location
+      - name: Run GPU-aware integration tests
+        run: |
+          Push-Location vision-worker
+          ..\.venv-vision\Scripts\python.exe -m pytest app/tests -q -m "gpu or not gpu"
+          Pop-Location
+      - name: Run approved benchmark only when requested
+        if: inputs.run_benchmark
+        run: |
+          if (-not (Test-Path 'artifacts\private\dataset-manifest.jsonl')) {
+            throw 'No private rights-cleared dataset manifest is configured.'
+          }
+          npm run vision:benchmark:run -- --profile baseline --device auto
+      - name: Preserve sanitized diagnostics as an artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gpu-workstation-diagnostics-${{ github.run_id }}
+          path: |
+            artifacts/gpu-environment.json
+            docs/GPU_ENVIRONMENT_REPORT.md
+          if-no-files-found: error
+          retention-days: 7

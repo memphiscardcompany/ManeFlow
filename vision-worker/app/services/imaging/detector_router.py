@@ -57,6 +57,7 @@ def detector_readiness() -> dict[str, object]:
         "backend": backend,
         "local_learned_configured": bool(settings.card_detector_model_path),
         "local_learned_ready": learned is not None,
+        "local_learned": learned.readiness() if learned is not None else None,
         "roboflow": roboflow.readiness().to_dict() if roboflow is not None else {
             "enabled": settings.roboflow_detection_enabled,
             "configured": bool(settings.roboflow_model_endpoint),

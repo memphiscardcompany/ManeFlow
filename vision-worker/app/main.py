@@ -10,6 +10,7 @@ from app.api.scan import router as scan_router
 from app.core.config import settings
 from app.services.imaging.embedding_engine import embedding_engine
 from app.services.imaging.detector_router import detector_readiness
+from maneflow_vision.gpu.runtime import detect_cuda_capability, resolve_compute_device
 
 app = FastAPI(
     title="ManeFlow API",
@@ -54,6 +55,12 @@ def readiness() -> dict:
         "identity": {
             "openai_vision_configured": bool(settings.openai_api_key and settings.openai_vision_model),
             "model": settings.openai_vision_model if settings.openai_api_key else None,
+        },
+        "compute": {
+            "capability": detect_cuda_capability(),
+            "default_decision": resolve_compute_device("evaluation").to_dict(),
+            "profile": settings.maneflow_gpu_execution_profile,
+            "mixed_precision": settings.maneflow_gpu_mixed_precision,
         },
         "detection": detector_readiness(),
         "embedding": embedding_engine.readiness(initialize=False).to_dict(),

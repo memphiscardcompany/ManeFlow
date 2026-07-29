@@ -1,0 +1,1 @@
+"""Authorized image embedding generation."""

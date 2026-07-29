@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "status": "NOT_VERIFIED_OWNER_WORKSTATION",
+  "generated_at": null,
+  "requested_device": "auto",
+  "selected_device": null,
+  "execution_provider": null,
+  "gpu": null,
+  "driver": null,
+  "cuda": null,
+  "reason": "Run python -m maneflow_vision.gpu.doctor on the owner workstation."
+}
