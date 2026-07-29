@@ -16,6 +16,9 @@ export function loadConfig(env = process.env) {
   const port = Number(env.PORT || 4321);
   const publicBaseUrl = env.PUBLIC_BASE_URL || `http://localhost:${port}`;
   const releaseChannel = env.RELEASE_CHANNEL || 'desktop-beta';
+  const metaOutboundChannelValue = env.MANEBRAIN_META_OUTBOUND_CHANNELS === undefined
+    ? 'messenger,instagram_dm'
+    : env.MANEBRAIN_META_OUTBOUND_CHANNELS;
   return {
     appName: 'ManeFlow',
     version: packageMetadata.version,
@@ -55,7 +58,7 @@ export function loadConfig(env = process.env) {
     metaIntakeEnabled: boolean(env.MANEBRAIN_META_INTAKE_ENABLED, false),
     metaKillSwitch: boolean(env.MANEBRAIN_META_KILL_SWITCH, true),
     metaOutboundEnabled: boolean(env.MANEBRAIN_META_OUTBOUND_ENABLED, false),
-    metaOutboundChannels: String(env.MANEBRAIN_META_OUTBOUND_CHANNELS || 'messenger,instagram_dm')
+    metaOutboundChannels: String(metaOutboundChannelValue)
       .split(',').map((item) => item.trim().toLowerCase()).filter(Boolean),
     metaAppSecret: String(env.META_APP_SECRET || '').trim(),
     metaWebhookVerifyToken: String(env.META_WEBHOOK_VERIFY_TOKEN || '').trim(),
@@ -133,6 +136,6 @@ export function loadConfig(env = process.env) {
     webReleaseId: String(env.MANEFLOW_WEB_RELEASE_ID || env.WEB_RELEASE_ID || '').trim(),
     apiReleaseId: String(env.MANEFLOW_API_RELEASE_ID || env.API_RELEASE_ID || '').trim(),
     visionReleaseId: String(env.MANEFLOW_VISION_RELEASE_ID || env.VISION_RELEASE_ID || '').trim(),
-    migrationVersion: String(env.MANEFLOW_MIGRATION_VERSION || env.MIGRATION_VERSION || '007').trim(),
+    migrationVersion: String(env.MANEFLOW_MIGRATION_VERSION || env.MIGRATION_VERSION || '008').trim(),
   };
 }
