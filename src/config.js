@@ -55,6 +55,8 @@ export function loadConfig(env = process.env) {
     requireEmailVerification: boolean(env.MANEFLOW_REQUIRE_EMAIL_VERIFICATION, true),
     platformOwnerUserIds: String(env.MANEFLOW_PLATFORM_OWNER_USER_IDS || '').split(',').map((item) => item.trim()).filter(Boolean),
     ownerRecentReauthMinutes: Math.max(1, Math.min(60, Number(env.MANEFLOW_OWNER_RECENT_REAUTH_MINUTES || 15))),
+    ownerMfaEncryptionKey: String(env.MANEFLOW_OWNER_MFA_ENCRYPTION_KEY || '').trim(),
+    ownerMfaIssuer: String(env.MANEFLOW_OWNER_MFA_ISSUER || 'ManeFlow').trim().slice(0, 100),
     metaIntakeEnabled: boolean(env.MANEBRAIN_META_INTAKE_ENABLED, false),
     metaKillSwitch: boolean(env.MANEBRAIN_META_KILL_SWITCH, true),
     metaOutboundEnabled: boolean(env.MANEBRAIN_META_OUTBOUND_ENABLED, false),
