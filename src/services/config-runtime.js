@@ -1,4 +1,5 @@
 import { ConfigurationError, redactSecrets } from './errors.js';
+import { ownerMfaKey } from './owner-mfa.js';
 
 const META_CHANNELS = new Set(['messenger', 'instagram_dm', 'facebook_comment', 'instagram_comment']);
 
@@ -19,6 +20,15 @@ function isOwnerUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
 }
 
+function validOwnerMfaKey(value) {
+  try {
+    ownerMfaKey(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function runtimeMode(config = {}, env = process.env) {
   if (config.productionMode !== undefined) return config.productionMode ? 'production' : 'local';
   if (env.NODE_ENV === 'production' || config.releaseChannel === 'production') return 'production';
@@ -29,6 +39,8 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
   const mode = runtimeMode(config, env);
   const errors = [];
   const warnings = [];
+  const ownerConfigured = Array.isArray(config.platformOwnerUserIds) && config.platformOwnerUserIds.length > 0;
+  const ownerMfaConfigured = validOwnerMfaKey(config.ownerMfaEncryptionKey);
   if (mode === 'production') {
     if (!isHttps(config.publicBaseUrl)) errors.push('PUBLIC_BASE_URL must be HTTPS in production.');
     if (config.secureCookies !== true) errors.push('Secure cookies are required in production.');
@@ -49,6 +61,9 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
     if (!has(config.emailWebhookUrl)) errors.push('MANEFLOW_EMAIL_WEBHOOK_URL is required for production verification and recovery email.');
     if (!has(config.releaseCommitSha) || config.releaseCommitSha === 'unverified') warnings.push('RELEASE_COMMIT_SHA is not verified.');
     if (!has(config.releaseDeployedAt)) warnings.push('RELEASE_DEPLOYED_AT is not set.');
+    if (ownerConfigured && !ownerMfaConfigured) {
+      errors.push('MANEFLOW_OWNER_MFA_ENCRYPTION_KEY must be a Base64URL-encoded 32-byte key when a platform owner is configured.');
+    }
     if (config.metaIntakeEnabled === true) {
       if (config.metaKillSwitch === true) errors.push('MANEBRAIN_META_KILL_SWITCH must be false before Meta intake can be enabled.');
       if (!Array.isArray(config.platformOwnerUserIds) || config.platformOwnerUserIds.length !== 1) {
@@ -56,6 +71,7 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
       } else if (!isOwnerUuid(config.platformOwnerUserIds[0])) {
         errors.push('MANEFLOW_PLATFORM_OWNER_USER_IDS must use the canonical PostgreSQL owner UUID.');
       }
+      if (!ownerMfaConfigured) errors.push('MANEFLOW_OWNER_MFA_ENCRYPTION_KEY is required before Meta intake can be enabled.');
       for (const [name, value] of [
         ['META_APP_SECRET', config.metaAppSecret],
         ['META_WEBHOOK_VERIFY_TOKEN', config.metaWebhookVerifyToken],
@@ -76,6 +92,7 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
       if (!Array.isArray(config.platformOwnerUserIds) || config.platformOwnerUserIds.length !== 1 || !isOwnerUuid(config.platformOwnerUserIds[0])) {
         errors.push('MANEFLOW_PLATFORM_OWNER_USER_IDS must contain exactly one verified immutable owner UUID before Meta outbound can be enabled.');
       }
+      if (!ownerMfaConfigured) errors.push('MANEFLOW_OWNER_MFA_ENCRYPTION_KEY is required before Meta outbound can be enabled.');
       for (const [name, value] of [
         ['META_APP_ID', config.metaAppId],
         ['META_BUSINESS_ID', config.metaBusinessId],
@@ -130,6 +147,9 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
       requireAuthentication: config.requireAuthentication,
       requireEmailVerification: config.requireEmailVerification,
       csrfProtection: config.csrfProtection,
+      ownerConfigured,
+      ownerMfaConfigured,
+      ownerMfaIssuer: config.ownerMfaIssuer || 'ManeFlow',
       scanJobStorageDurable: config.scanJobStorageDurable === true,
       scanJobMaxItems: config.scanJobMaxItems,
       scanJobConcurrency: config.scanJobConcurrency,
