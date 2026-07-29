@@ -12,6 +12,10 @@ function isHttps(value) {
   }
 }
 
+function isOwnerUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+}
+
 export function runtimeMode(config = {}, env = process.env) {
   if (config.productionMode !== undefined) return config.productionMode ? 'production' : 'local';
   if (env.NODE_ENV === 'production' || config.releaseChannel === 'production') return 'production';
@@ -44,7 +48,7 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
       if (config.metaKillSwitch === true) errors.push('MANEBRAIN_META_KILL_SWITCH must be false before Meta intake can be enabled.');
       if (!Array.isArray(config.platformOwnerUserIds) || config.platformOwnerUserIds.length !== 1) {
         errors.push('MANEFLOW_PLATFORM_OWNER_USER_IDS must contain exactly one verified immutable owner UUID before owner-only Meta intake can be enabled.');
-      } else if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(config.platformOwnerUserIds[0])) {
+      } else if (!isOwnerUuid(config.platformOwnerUserIds[0])) {
         errors.push('MANEFLOW_PLATFORM_OWNER_USER_IDS must use the canonical PostgreSQL owner UUID.');
       }
       for (const [name, value] of [
@@ -64,17 +68,24 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
     if (config.metaOutboundEnabled === true) {
       if (config.metaIntakeEnabled !== true) errors.push('MANEBRAIN_META_INTAKE_ENABLED must be true before Meta outbound can be enabled.');
       if (config.metaKillSwitch === true) errors.push('MANEBRAIN_META_KILL_SWITCH must be false before Meta outbound can be enabled.');
-      if (!Array.isArray(config.platformOwnerUserIds) || config.platformOwnerUserIds.length === 0) {
-        errors.push('MANEFLOW_PLATFORM_OWNER_USER_IDS must contain Joshua’s verified immutable user ID before Meta outbound can be enabled.');
+      if (!Array.isArray(config.platformOwnerUserIds) || config.platformOwnerUserIds.length !== 1 || !isOwnerUuid(config.platformOwnerUserIds[0])) {
+        errors.push('MANEFLOW_PLATFORM_OWNER_USER_IDS must contain exactly one verified immutable owner UUID before Meta outbound can be enabled.');
       }
       for (const [name, value] of [
         ['META_APP_ID', config.metaAppId],
         ['META_BUSINESS_ID', config.metaBusinessId],
         ['META_PAGE_ID', config.metaPageId],
         ['META_INSTAGRAM_ACCOUNT_ID', config.metaInstagramAccountId],
+        ['META_PAGE_ACCESS_TOKEN', config.metaPageAccessToken],
+        ['META_INSTAGRAM_ACCESS_TOKEN', config.metaInstagramAccessToken],
       ]) {
         if (!has(value)) errors.push(`${name} is required before Meta outbound can be enabled.`);
       }
+      if (!/^v\d+\.\d+$/.test(String(config.metaGraphApiVersion || ''))) {
+        errors.push('META_GRAPH_API_VERSION must use the vNN.N format.');
+      }
+      if (!isHttps(config.metaMessengerGraphBaseUrl)) errors.push('META_MESSENGER_GRAPH_BASE_URL must be HTTPS.');
+      if (!isHttps(config.metaInstagramGraphBaseUrl)) errors.push('META_INSTAGRAM_GRAPH_BASE_URL must be HTTPS.');
     }
   }
   if (config.storageMode === 'postgres' && !has(config.databaseUrl)) {
@@ -110,6 +121,7 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
       metaAttachmentAllowedHostCount: Array.isArray(config.metaAttachmentAllowedHosts)
         ? config.metaAttachmentAllowedHosts.length
         : 0,
+      metaGraphApiVersion: config.metaGraphApiVersion,
       metaMode: config.metaKillSwitch === true
         ? 'disabled'
         : config.metaOutboundEnabled === true
