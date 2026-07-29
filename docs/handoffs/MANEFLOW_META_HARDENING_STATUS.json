@@ -1,10 +1,11 @@
 {
-  "recordedAt": "2026-07-29T14:10:00Z",
+  "recordedAt": "2026-07-29T14:36:30Z",
   "repository": "memphiscardcompany/ManeFlow",
-  "branch": "codex/meta-hardening-rebased-20260729-0905",
-  "baseBranch": "main",
-  "baseCommit": "27facec749c884dbb3fb6141127db127dfe9c35e",
-  "status": "implemented_ci_pending",
+  "canonicalBranch": "main",
+  "sourcePullRequest": 10,
+  "verifiedSourceHead": "1a92a9ad2086d9f1dd17d2e8733381f65cabee9a",
+  "mergedCommit": "154a6b2fe7b3e625f23198080dc5ceab23c3fc4c",
+  "status": "merged_not_deployed",
   "productionDeploymentEnabled": false,
   "meta": {
     "killSwitchDefault": true,
@@ -21,23 +22,43 @@
     "migrationVersion": "008"
   },
   "verified": [
-    "canonical continuation PR 7 merged to main after green CI"
+    {
+      "name": "Verify ManeFlow",
+      "workflowRunId": 30461494393,
+      "conclusion": "success",
+      "jobs": [
+        "api-and-pwa",
+        "native-client",
+        "vision-cpu"
+      ]
+    },
+    {
+      "name": "PostgreSQL and pgvector Integration",
+      "workflowRunId": 30461494496,
+      "conclusion": "success",
+      "jobs": [
+        "postgres-pgvector"
+      ]
+    },
+    "migration 008 applied in CI",
+    "schema, pgvector, HNSW, forced RLS, runtime role, and cross-tenant isolation passed in CI",
+    "PR 10 merged to main"
   ],
   "notVerified": [
-    "GitHub Actions on exact rebased hardening head",
-    "public HTTPS webhook deployment",
+    "public first-party HTTPS staging deployment",
     "Meta callback challenge",
-    "Page and Instagram professional-account subscriptions",
-    "production token health",
+    "Page and Instagram professional-account linkage and subscriptions",
+    "production token health and expiry",
     "Business Verification and App Review",
-    "owner MFA and recent reauthentication",
-    "private attachment object storage",
-    "real signed inbound events",
-    "real owner-approved outbound round trip"
+    "Joshua owner MFA and recent reauthentication",
+    "private attachment object storage, retention, and deletion",
+    "real signed Messenger and Instagram events",
+    "real owner-approved outbound provider round trip",
+    "final delivery beyond provider acceptance and signed echo observation"
   ],
   "blockedBy": [
     "authenticated Meta dashboard actions",
-    "production PostgreSQL and object storage",
+    "production PostgreSQL and private object storage",
     "deployment secret manager",
     "public first-party staging deployment"
   ]
