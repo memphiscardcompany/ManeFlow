@@ -12,6 +12,7 @@ import {
   unauthorized,
 } from '../services/utils.js';
 import { MetaOwnerRepository } from '../db/metaOwnerRepository.js';
+import { MetaOutboundQueryRepository } from '../db/metaOutboundQueryRepository.js';
 import { dispatchMetaBatch } from './meta-dispatcher.js';
 import { generateMetaReplyDraft } from './meta-draft-service.js';
 import { requirePlatformOwner } from './owner-authority.js';
@@ -87,8 +88,11 @@ function publicJob(job) {
     maxAttempts: Number(job.max_attempts || 0),
     deliveryCertainty: job.delivery_certainty || null,
     providerMessageId: job.provider_message_id || null,
+    providerEchoAt: job.provider_echo_at || null,
     lastErrorCode: job.last_error_code || null,
     channel: job.channel || null,
+    draftVersion: job.draft_version == null ? null : Number(job.draft_version),
+    draftSource: job.draft_source || null,
     createdAt: job.created_at || null,
     updatedAt: job.updated_at || null,
     sentAt: job.sent_at || null,
@@ -118,10 +122,11 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
     const draftCreate = url.pathname.match(/^\/api\/owner\/meta\/conversations\/([0-9a-f-]+)\/drafts$/i);
     const draftApprove = url.pathname.match(/^\/api\/owner\/meta\/drafts\/([0-9a-f-]+)\/approve$/i);
     const draftReject = url.pathname.match(/^\/api\/owner\/meta\/drafts\/([0-9a-f-]+)\/reject$/i);
+    const outboundList = url.pathname === '/api/owner/meta/outbound';
     const outboundQueue = url.pathname.match(/^\/api\/owner\/meta\/outbound\/([0-9a-f-]+)\/queue$/i);
     const outboundRead = url.pathname.match(/^\/api\/owner\/meta\/outbound\/([0-9a-f-]+)$/i);
     const dispatchRun = url.pathname === '/api/owner/meta/dispatch/run';
-    if (!draftCreate && !draftApprove && !draftReject && !outboundQueue && !outboundRead && !dispatchRun) return false;
+    if (!draftCreate && !draftApprove && !draftReject && !outboundList && !outboundQueue && !outboundRead && !dispatchRun) return false;
 
     if (!databaseRuntime?.pool || !databaseRuntime?.metaInboundRepository || !databaseRuntime?.metaOutboundRepository) {
       json(res, 503, { error: 'META_DATABASE_NOT_READY' });
@@ -139,6 +144,7 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
     if (mutating && !requireMutationSecurity(req, res, config, rawActor)) return true;
 
     const repository = new MetaOwnerRepository(databaseRuntime.pool);
+    const queryRepository = new MetaOutboundQueryRepository(databaseRuntime.pool);
     try {
       if (draftCreate && method === 'POST') {
         const body = await readJson(req, 300_000);
@@ -196,6 +202,27 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
           reason: body.reason,
         });
         json(res, 200, { draft });
+        return true;
+      }
+
+      if (outboundList && method === 'GET') {
+        const jobs = await queryRepository.list(owner.userId, {
+          status: url.searchParams.get('status'),
+          limit: Number(url.searchParams.get('limit') || 50),
+          beforeUpdatedAt: url.searchParams.get('beforeUpdatedAt'),
+          beforeId: url.searchParams.get('beforeId'),
+        });
+        const counts = await queryRepository.counts(owner.userId);
+        json(res, 200, {
+          jobs: jobs.map(publicJob),
+          counts,
+          pagination: jobs.length
+            ? {
+              nextBeforeUpdatedAt: jobs.at(-1).updated_at,
+              nextBeforeId: jobs.at(-1).id,
+            }
+            : null,
+        });
         return true;
       }
 
