@@ -1,4 +1,5 @@
 import { DurableScanJobSpool } from './services/durable-scan-jobs.js';
+import { hardenDurableScanJobSpool } from './services/durable-scan-hardening.js';
 import {
   csrfTokenForSession,
   hashSessionToken,
@@ -65,18 +66,22 @@ function mutationAllowed(req, config, actor) {
 
 function routeError(res, error) {
   const message = error instanceof Error ? error.message : String(error);
-  const status = /not found/i.test(message) ? 404
-    : /no longer accepting|cannot be|no failed items|upload at least/i.test(message) ? 409
-      : /limit|exceeds|unsupported|required|does not match|authorization/i.test(message) ? 400
-        : 500;
+  const explicitStatus = Number(error?.status || 0);
+  const status = explicitStatus >= 400 && explicitStatus <= 599
+    ? explicitStatus
+    : /not found/i.test(message) ? 404
+      : /no longer accepting|cannot be|no failed items|upload at least|incomplete|already exists/i.test(message) ? 409
+        : /limit|exceeds|unsupported|required|does not match|authorization/i.test(message) ? 400
+          : 500;
   return json(res, status, {
     error: error?.code || 'SCAN_JOB_OPERATION_FAILED',
     message,
+    retryable: error?.retryable === true,
   });
 }
 
 export async function createDurableScanJobRouter({ config, store, processor } = {}) {
-  const spool = new DurableScanJobSpool({
+  const spool = hardenDurableScanJobSpool(new DurableScanJobSpool({
     rootDir: config.scanJobDir,
     processor: async ({ ownerUserId, fileName, dataUrl, trainingConsent, jobId, itemId }) => processor({
       ownerUserId,
@@ -95,7 +100,7 @@ export async function createDurableScanJobRouter({ config, store, processor } = 
     maxAttempts: config.scanJobMaxAttempts,
     retentionHours: config.scanJobRetentionHours,
     retryBackoffMs: config.scanJobRetryBackoffMs,
-  });
+  }));
   await spool.initialize();
   const mutationLimiter = new RateLimiter({ windowMs: 60_000, max: 600 });
 
@@ -139,6 +144,7 @@ export async function createDurableScanJobRouter({ config, store, processor } = 
         if (body.processingAuthorization !== true) {
           const error = new Error('Explicit authorization to process these images is required.');
           error.code = 'SCAN_IMAGE_AUTHORIZATION_REQUIRED';
+          error.status = 400;
           throw error;
         }
         const idempotencyKey = String(req.headers['idempotency-key'] || body.idempotencyKey || '').trim();
