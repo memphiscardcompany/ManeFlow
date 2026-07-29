@@ -1,0 +1,6 @@
+ManeFlow Windows Store release candidate
+App version: 2.20.0
+MSIX package version: 2.20.0.0
+Hosted PWA: https://142df297558ace9e22.v2.appdeploy.ai/
+Publisher brand: Memphis Card Company LLC
+Prepared: 2026-07-23

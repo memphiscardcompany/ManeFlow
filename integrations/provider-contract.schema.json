@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maneflow.memphiscardcompany.com/schemas/provider-sale.json",
+  "title": "ManeFlow normalized sale event",
+  "type": "object",
+  "required": ["provider", "soldAt", "price", "currency"],
+  "properties": {
+    "provider": { "type": "string", "minLength": 1 },
+    "rawProviderId": { "type": ["string", "null"] },
+    "cardId": { "type": ["string", "null"] },
+    "soldAt": { "type": "string", "format": "date-time" },
+    "price": { "type": "number", "minimum": 0 },
+    "shipping": { "type": "number", "minimum": 0, "default": 0 },
+    "buyerPremium": { "type": "number", "minimum": 0, "default": 0 },
+    "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+    "saleType": { "enum": ["auction", "fixed_price", "best_offer", "private_sale", "other"] },
+    "verified": { "type": "boolean" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "url": { "type": ["string", "null"], "format": "uri" }
+  },
+  "additionalProperties": true
+}

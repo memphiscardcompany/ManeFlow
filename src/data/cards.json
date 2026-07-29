@@ -1,0 +1,170 @@
+[
+  {
+    "id": "card_ohtani_2018_update_us1_psa10",
+    "year": 2018,
+    "brand": "Topps",
+    "set": "Update Series",
+    "player": "Shohei Ohtani",
+    "team": "Los Angeles Angels",
+    "cardNumber": "US1",
+    "parallel": "Base Rookie Debut",
+    "serialNumber": null,
+    "grade": {
+      "company": "PSA",
+      "grade": "10"
+    },
+    "sport": "Baseball",
+    "aliases": [
+      "Ohtani rookie debut",
+      "2018 Topps Update Ohtani US1"
+    ],
+    "image": "/assets/ohtani-card.svg"
+  },
+  {
+    "id": "card_jordan_1986_fleer_57_psa8",
+    "year": 1986,
+    "brand": "Fleer",
+    "set": "Fleer Basketball",
+    "player": "Michael Jordan",
+    "team": "Chicago Bulls",
+    "cardNumber": "57",
+    "parallel": "Base Rookie",
+    "serialNumber": null,
+    "grade": {
+      "company": "PSA",
+      "grade": "8"
+    },
+    "sport": "Basketball",
+    "aliases": [
+      "Jordan rookie",
+      "MJ 57"
+    ],
+    "image": "/assets/jordan-card.svg"
+  },
+  {
+    "id": "card_brady_2000_bowman_236_psa9",
+    "year": 2000,
+    "brand": "Bowman",
+    "set": "Bowman Football",
+    "player": "Tom Brady",
+    "team": "New England Patriots",
+    "cardNumber": "236",
+    "parallel": "Base Rookie",
+    "serialNumber": null,
+    "grade": {
+      "company": "PSA",
+      "grade": "9"
+    },
+    "sport": "Football",
+    "aliases": [
+      "Brady rookie",
+      "Bowman 236"
+    ],
+    "image": "/assets/brady-card.svg"
+  },
+  {
+    "id": "card_charizard_1999_base_4_psa9",
+    "year": 1999,
+    "brand": "Wizards of the Coast",
+    "set": "Pokemon Base Set",
+    "player": "Charizard",
+    "team": null,
+    "cardNumber": "4/102",
+    "parallel": "Holo Unlimited",
+    "serialNumber": null,
+    "grade": {
+      "company": "PSA",
+      "grade": "9"
+    },
+    "sport": "Pokemon",
+    "aliases": [
+      "Base set Charizard",
+      "holo 4 102"
+    ],
+    "image": "/assets/charizard-card.svg"
+  },
+  {
+    "id": "card_wemby_2023_prizm_136_psa10",
+    "year": 2023,
+    "brand": "Panini",
+    "set": "Prizm Basketball",
+    "player": "Victor Wembanyama",
+    "team": "San Antonio Spurs",
+    "cardNumber": "136",
+    "parallel": "Silver Prizm Rookie",
+    "serialNumber": null,
+    "grade": {
+      "company": "PSA",
+      "grade": "10"
+    },
+    "sport": "Basketball",
+    "aliases": [
+      "Wemby silver rookie",
+      "Prizm 136"
+    ],
+    "image": "/assets/wemby-card.svg"
+  },
+  {
+    "id": "card_mahomes_2017_prizm_269_psa10",
+    "year": 2017,
+    "brand": "Panini",
+    "set": "Prizm Football",
+    "player": "Patrick Mahomes II",
+    "team": "Kansas City Chiefs",
+    "cardNumber": "269",
+    "parallel": "Base Rookie",
+    "serialNumber": null,
+    "grade": {
+      "company": "PSA",
+      "grade": "10"
+    },
+    "sport": "Football",
+    "aliases": [
+      "Mahomes rookie",
+      "Prizm 269"
+    ],
+    "image": "/assets/mahomes-card.svg"
+  },
+  {
+    "id": "card_judge_2017_topps_287_psa10",
+    "year": 2017,
+    "brand": "Topps",
+    "set": "Topps Series 1",
+    "player": "Aaron Judge",
+    "team": "New York Yankees",
+    "cardNumber": "287",
+    "parallel": "Base Rookie",
+    "serialNumber": null,
+    "grade": {
+      "company": "PSA",
+      "grade": "10"
+    },
+    "sport": "Baseball",
+    "aliases": [
+      "Judge rookie",
+      "Topps 287"
+    ],
+    "image": "/assets/judge-card.svg"
+  },
+  {
+    "id": "card_pikachu_2023_151_173_raw",
+    "year": 2023,
+    "brand": "Pokemon",
+    "set": "Scarlet & Violet 151",
+    "player": "Pikachu",
+    "team": null,
+    "cardNumber": "173/165",
+    "parallel": "Illustration Rare",
+    "serialNumber": null,
+    "grade": {
+      "company": "RAW",
+      "grade": "Raw"
+    },
+    "sport": "Pokemon",
+    "aliases": [
+      "Pikachu illustration rare",
+      "151 Pikachu"
+    ],
+    "image": "/assets/pikachu-card.svg"
+  }
+]

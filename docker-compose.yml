@@ -1,0 +1,103 @@
+name: maneflow
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: maneflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-maneflow-local-admin-change-me}
+    volumes:
+      - maneflow_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d maneflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - maneflow_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    command: ["node", "scripts/migrate-postgres.js"]
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_ADMIN_PASSWORD:-maneflow-local-admin-change-me}@postgres:5432/maneflow
+      MANEFLOW_DATABASE_APP_PASSWORD: ${MANEFLOW_DATABASE_APP_PASSWORD:-maneflow-local-app-change-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  vision:
+    build:
+      context: ./vision-worker
+    environment:
+      MANEFLOW_DATA_DIR: /data
+      MANEFLOW_EMBEDDING_ENABLED: ${MANEFLOW_EMBEDDING_ENABLED:-false}
+      MANEFLOW_EMBEDDING_MODEL_PATH: ${MANEFLOW_EMBEDDING_MODEL_PATH:-}
+      MANEFLOW_EMBEDDING_EXECUTION_PROVIDER: ${MANEFLOW_EMBEDDING_EXECUTION_PROVIDER:-auto}
+      CARD_DETECTOR_BACKEND: ${CARD_DETECTOR_BACKEND:-auto}
+      CARD_DETECTOR_MODEL_PATH: ${CARD_DETECTOR_MODEL_PATH:-}
+      MANEFLOW_CORE_URL: http://maneflow:4321
+      MANEFLOW_SERVICE_TOKEN: ${MANEFLOW_SERVICE_TOKEN:?Set MANEFLOW_SERVICE_TOKEN}
+    volumes:
+      - maneflow_vision_data:/data
+      - ${MANEFLOW_MODEL_DIR:-./models}:/models:ro
+    ports:
+      - "8741:8741"
+    restart: unless-stopped
+
+  maneflow:
+    build: .
+    environment:
+      NODE_ENV: production
+      RELEASE_CHANNEL: private-beta
+      HOST: 0.0.0.0
+      PORT: 4321
+      PUBLIC_BASE_URL: http://localhost:4321
+      STORAGE_MODE: postgres
+      DATABASE_URL: postgresql://maneflow_app:${MANEFLOW_DATABASE_APP_PASSWORD:-maneflow-local-app-change-me}@postgres:5432/maneflow
+      REDIS_URL: redis://redis:6379/0
+      MANEFLOW_VISION_WORKER_URL: http://vision:8741
+      MANEFLOW_DEMO_MODE: ${MANEFLOW_DEMO_MODE:-true}
+      MANEFLOW_ALLOW_GUEST_WRITES: ${MANEFLOW_ALLOW_GUEST_WRITES:-false}
+      MANEFLOW_ALLOW_PUBLIC_SIGNUPS: ${MANEFLOW_ALLOW_PUBLIC_SIGNUPS:-false}
+      MANEFLOW_ADMIN_TOKEN: ${MANEFLOW_ADMIN_TOKEN:?Set MANEFLOW_ADMIN_TOKEN}
+      MANEFLOW_API_TOKEN: ${MANEFLOW_API_TOKEN:?Set MANEFLOW_API_TOKEN}
+      MANEFLOW_SERVICE_TOKEN: ${MANEFLOW_SERVICE_TOKEN:?Set MANEFLOW_SERVICE_TOKEN}
+      EBAY_OAUTH_STATE_SECRET: ${EBAY_OAUTH_STATE_SECRET:?Set EBAY_OAUTH_STATE_SECRET}
+    env_file:
+      - .env
+    ports:
+      - "4321:4321"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      vision:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+volumes:
+  maneflow_postgres:
+  maneflow_redis:
+  maneflow_vision_data:

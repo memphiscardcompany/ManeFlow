@@ -1,0 +1,2041 @@
+{
+  "summary": {
+    "images": 67,
+    "decoded_images": 67,
+    "image_errors": 0,
+    "detected_crops": 24,
+    "surface_successes": 23,
+    "surface_low_resolution_skips": 1,
+    "centering_successes": 23,
+    "centering_low_resolution_skips": 1,
+    "barcode_values_found": 0,
+    "unexpected_stage_errors": 0,
+    "mean_total_latency_ms": 49.785,
+    "p50_total_latency_ms": 40.539,
+    "p95_total_latency_ms": 121.234,
+    "maximum_total_latency_ms": 218.649
+  },
+  "stage_errors": [],
+  "rows": [
+    {
+      "path": "kronozio/StartEN.jpg",
+      "quality": {
+        "width": 1202,
+        "height": 538,
+        "blur_score": 1497.8,
+        "glare_fraction": 0.0548,
+        "brightness": 196.82,
+        "quality_score": 70,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Some glare is present; tilt the card or diffuse the light."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 60.019,
+      "error": null
+    },
+    {
+      "path": "kronozio/StartFR.jpg",
+      "quality": {
+        "width": 1202,
+        "height": 538,
+        "blur_score": 1498.08,
+        "glare_fraction": 0.0551,
+        "brightness": 196.92,
+        "quality_score": 70,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Some glare is present; tilt the card or diffuse the light."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 35.546,
+      "error": null
+    },
+    {
+      "path": "kronozio/box.jpg",
+      "quality": {
+        "width": 510,
+        "height": 280,
+        "blur_score": 910.25,
+        "glare_fraction": 0.0001,
+        "brightness": 150.25,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 16.709,
+      "error": null
+    },
+    {
+      "path": "kronozio/boxes.jpg",
+      "quality": {
+        "width": 378,
+        "height": 359,
+        "blur_score": 2157.46,
+        "glare_fraction": 0.0201,
+        "brightness": 132.23,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 10.755,
+      "error": null
+    },
+    {
+      "path": "kronozio/ebaycategcode.jpg",
+      "quality": {
+        "width": 949,
+        "height": 605,
+        "blur_score": 5246.83,
+        "glare_fraction": 0.4083,
+        "brightness": 225.5,
+        "quality_score": 39,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 3,
+      "crops": [
+        {
+          "confidence": 0.8017,
+          "area_fraction": 0.0343,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 135,
+          "height": 163,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.2965,
+            "texture_entropy": 0.8275,
+            "high_reflectivity_patches": 6,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "80/20",
+            "centering_tb": "45/55",
+            "estimated_centering_score": 7.2,
+            "edge_wear_detected": true,
+            "corner_wear_score": 5.0,
+            "left_border_px": 45,
+            "right_border_px": 13,
+            "top_border_px": 43,
+            "bottom_border_px": 51,
+            "confidence": 0.4618,
+            "warnings": []
+          },
+          "barcodes": []
+        },
+        {
+          "confidence": 0.8992,
+          "area_fraction": 0.0303,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 115,
+          "height": 157,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.1989,
+            "texture_entropy": 0.8234,
+            "high_reflectivity_patches": 5,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "50/50",
+            "centering_tb": "50/50",
+            "estimated_centering_score": 10.0,
+            "edge_wear_detected": true,
+            "corner_wear_score": 3.7,
+            "left_border_px": 38,
+            "right_border_px": 38,
+            "top_border_px": 52,
+            "bottom_border_px": 52,
+            "confidence": 0.7147,
+            "warnings": []
+          },
+          "barcodes": []
+        },
+        {
+          "confidence": 0.7773,
+          "area_fraction": 0.0248,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 111,
+          "height": 161,
+          "surface": {
+            "detected_surface_type": "BASE",
+            "refractor_confidence": 0.36,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0759,
+            "texture_entropy": 0.7131,
+            "high_reflectivity_patches": 5,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "Reflective evidence was not strong enough to assign a refractor family; BASE is a conservative fallback.",
+              "Surface classification is low-confidence; confirm the parallel from a second angle or catalog match."
+            ]
+          },
+          "centering": {
+            "centering_lr": "90/10",
+            "centering_tb": "10/90",
+            "estimated_centering_score": 5.9,
+            "edge_wear_detected": true,
+            "corner_wear_score": 1.6,
+            "left_border_px": 21,
+            "right_border_px": 3,
+            "top_border_px": 5,
+            "bottom_border_px": 50,
+            "confidence": 0.4437,
+            "warnings": [
+              "The card has a light border; whitening detection is low-confidence."
+            ]
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 198.038,
+      "error": null
+    },
+    {
+      "path": "kronozio/editcards.jpg",
+      "quality": {
+        "width": 914,
+        "height": 435,
+        "blur_score": 3650.3,
+        "glare_fraction": 0.3615,
+        "brightness": 205.65,
+        "quality_score": 54,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 18.59,
+      "error": null
+    },
+    {
+      "path": "kronozio/editcardszoom.jpg",
+      "quality": {
+        "width": 178,
+        "height": 180,
+        "blur_score": 4494.51,
+        "glare_fraction": 0.4194,
+        "brightness": 220.92,
+        "quality_score": 39,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 1.726,
+      "error": null
+    },
+    {
+      "path": "kronozio/flatbed.jpg",
+      "quality": {
+        "width": 679,
+        "height": 406,
+        "blur_score": 4036.58,
+        "glare_fraction": 0.0807,
+        "brightness": 173.07,
+        "quality_score": 70,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Some glare is present; tilt the card or diffuse the light."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 7.361,
+      "error": null
+    },
+    {
+      "path": "kronozio/flatbedcards1.jpg",
+      "quality": {
+        "width": 396,
+        "height": 290,
+        "blur_score": 2352.19,
+        "glare_fraction": 0.0244,
+        "brightness": 185.2,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.8419,
+          "area_fraction": 0.7561,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 284,
+          "height": 391,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.1315,
+            "texture_entropy": 0.6888,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "70/30",
+            "centering_tb": "75/25",
+            "estimated_centering_score": 7.4,
+            "edge_wear_detected": true,
+            "corner_wear_score": 6.7,
+            "left_border_px": 32,
+            "right_border_px": 15,
+            "top_border_px": 121,
+            "bottom_border_px": 38,
+            "confidence": 0.5014,
+            "warnings": [
+              "The card has a light border; whitening detection is low-confidence."
+            ]
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 38.788,
+      "error": null
+    },
+    {
+      "path": "kronozio/flatbedcards2.jpg",
+      "quality": {
+        "width": 396,
+        "height": 280,
+        "blur_score": 3045.28,
+        "glare_fraction": 0.0073,
+        "brightness": 84.13,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.7823,
+          "area_fraction": 0.6572,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 279,
+          "height": 395,
+          "surface": {
+            "detected_surface_type": "BASE",
+            "refractor_confidence": 0.36,
+            "rainbow_variance": 0.9866,
+            "reflectivity_score": 0.0541,
+            "texture_entropy": 0.5569,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "Reflective evidence was not strong enough to assign a refractor family; BASE is a conservative fallback.",
+              "Surface classification is low-confidence; confirm the parallel from a second angle or catalog match."
+            ]
+          },
+          "centering": {
+            "centering_lr": "90/10",
+            "centering_tb": "30/70",
+            "estimated_centering_score": 6.0,
+            "edge_wear_detected": true,
+            "corner_wear_score": 8.5,
+            "left_border_px": 76,
+            "right_border_px": 8,
+            "top_border_px": 27,
+            "bottom_border_px": 71,
+            "confidence": 0.99,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 69.312,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_01.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 65.38,
+        "glare_fraction": 0.0126,
+        "brightness": 145.67,
+        "quality_score": 70,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Image is slightly soft; small print may be unreliable."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.637,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_02.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 88.89,
+        "glare_fraction": 0.0,
+        "brightness": 141.11,
+        "quality_score": 70,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Image is slightly soft; small print may be unreliable."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.43,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_03.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 579.05,
+        "glare_fraction": 0.0066,
+        "brightness": 120.68,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.555,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_04.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 205.33,
+        "glare_fraction": 0.0021,
+        "brightness": 138.23,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.21,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_05.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 387.19,
+        "glare_fraction": 0.0374,
+        "brightness": 121.12,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.418,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_06.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 304.98,
+        "glare_fraction": 0.0202,
+        "brightness": 98.86,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.339,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_07.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 742.26,
+        "glare_fraction": 0.0444,
+        "brightness": 110.32,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.667,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_08.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 305.69,
+        "glare_fraction": 0.2277,
+        "brightness": 171.97,
+        "quality_score": 54,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.03,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_09.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 840.75,
+        "glare_fraction": 0.0019,
+        "brightness": 189.23,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.5,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_10.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 97.68,
+        "glare_fraction": 0.1175,
+        "brightness": 169.58,
+        "quality_score": 58,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Image is slightly soft; small print may be unreliable.",
+          "Some glare is present; tilt the card or diffuse the light."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 3.851,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_11.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 3.19,
+        "glare_fraction": 0.0072,
+        "brightness": 207.69,
+        "quality_score": 52,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Image is blurry; hold the camera steady or rescan."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 3.452,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_12.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 23.15,
+        "glare_fraction": 0.0,
+        "brightness": 26.54,
+        "quality_score": 32,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Image is blurry; hold the camera steady or rescan.",
+          "Image is too dark."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 3.701,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_13.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 69.85,
+        "glare_fraction": 0.0,
+        "brightness": 123.56,
+        "quality_score": 70,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Image is slightly soft; small print may be unreliable."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.163,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_14.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 558.18,
+        "glare_fraction": 0.0,
+        "brightness": 23.16,
+        "quality_score": 62,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Image is too dark."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 4.34,
+      "error": null
+    },
+    {
+      "path": "kronozio/kz_banner_15.jpg",
+      "quality": {
+        "width": 1200,
+        "height": 200,
+        "blur_score": 204.12,
+        "glare_fraction": 0.0,
+        "brightness": 49.12,
+        "quality_score": 62,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Image is too dark."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 3.896,
+      "error": null
+    },
+    {
+      "path": "kronozio/location.png",
+      "quality": {
+        "width": 555,
+        "height": 89,
+        "blur_score": 5351.75,
+        "glare_fraction": 0.0828,
+        "brightness": 211.47,
+        "quality_score": 70,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Some glare is present; tilt the card or diffuse the light."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 1.418,
+      "error": null
+    },
+    {
+      "path": "kronozio/mappings.jpg",
+      "quality": {
+        "width": 763,
+        "height": 1045,
+        "blur_score": 2728.75,
+        "glare_fraction": 0.3007,
+        "brightness": 214.45,
+        "quality_score": 72,
+        "warnings": [
+          "Heavy glare may obscure foil, labels, or card text."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 30.277,
+      "error": null
+    },
+    {
+      "path": "kronozio/onecard.jpg",
+      "quality": {
+        "width": 301,
+        "height": 496,
+        "blur_score": 10347.99,
+        "glare_fraction": 0.3109,
+        "brightness": 228.87,
+        "quality_score": 39,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 9.556,
+      "error": null
+    },
+    {
+      "path": "kronozio/photoborder.png",
+      "quality": {
+        "width": 508,
+        "height": 286,
+        "blur_score": 2406.43,
+        "glare_fraction": 0.4715,
+        "brightness": 176.99,
+        "quality_score": 54,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text."
+        ]
+      },
+      "detection_count": 2,
+      "crops": [
+        {
+          "confidence": 0.9183,
+          "area_fraction": 0.3202,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 179,
+          "height": 270,
+          "surface": {
+            "detected_surface_type": "WAVE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.173,
+            "texture_entropy": 0.6806,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "50/50",
+            "centering_tb": "20/80",
+            "estimated_centering_score": 6.9,
+            "edge_wear_detected": true,
+            "corner_wear_score": 4.1,
+            "left_border_px": 5,
+            "right_border_px": 5,
+            "top_border_px": 7,
+            "bottom_border_px": 29,
+            "confidence": 0.99,
+            "warnings": [
+              "The card has a light border; whitening detection is low-confidence."
+            ]
+          },
+          "barcodes": []
+        },
+        {
+          "confidence": 0.9128,
+          "area_fraction": 0.306,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 181,
+          "height": 269,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.1774,
+            "texture_entropy": 0.692,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "40/60",
+            "centering_tb": "20/80",
+            "estimated_centering_score": 7.0,
+            "edge_wear_detected": true,
+            "corner_wear_score": 2.4,
+            "left_border_px": 9,
+            "right_border_px": 14,
+            "top_border_px": 11,
+            "bottom_border_px": 43,
+            "confidence": 0.7024,
+            "warnings": [
+              "The card has a light border; whitening detection is low-confidence."
+            ]
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 40.539,
+      "error": null
+    },
+    {
+      "path": "kronozio/photophoto.jpg",
+      "quality": {
+        "width": 744,
+        "height": 450,
+        "blur_score": 1177.04,
+        "glare_fraction": 0.3174,
+        "brightness": 160.45,
+        "quality_score": 54,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text."
+        ]
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.7222,
+          "area_fraction": 0.3015,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 351,
+          "height": 449,
+          "surface": {
+            "detected_surface_type": "BASE",
+            "refractor_confidence": 0.36,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0313,
+            "texture_entropy": 0.7683,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "Reflective evidence was not strong enough to assign a refractor family; BASE is a conservative fallback.",
+              "Surface classification is low-confidence; confirm the parallel from a second angle or catalog match."
+            ]
+          },
+          "centering": {
+            "centering_lr": "35/65",
+            "centering_tb": "50/50",
+            "estimated_centering_score": 8.5,
+            "edge_wear_detected": true,
+            "corner_wear_score": 9.0,
+            "left_border_px": 37,
+            "right_border_px": 70,
+            "top_border_px": 49,
+            "bottom_border_px": 47,
+            "confidence": 0.99,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 44.28,
+      "error": null
+    },
+    {
+      "path": "kronozio/photoset1.jpg",
+      "quality": {
+        "width": 482,
+        "height": 363,
+        "blur_score": 3416.63,
+        "glare_fraction": 0.0116,
+        "brightness": 160.24,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.8234,
+          "area_fraction": 0.5769,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 333,
+          "height": 481,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.078,
+            "texture_entropy": 0.7326,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "60/40",
+            "centering_tb": "50/50",
+            "estimated_centering_score": 9.1,
+            "edge_wear_detected": false,
+            "corner_wear_score": 10.0,
+            "left_border_px": 55,
+            "right_border_px": 39,
+            "top_border_px": 131,
+            "bottom_border_px": 135,
+            "confidence": 0.4127,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 30.593,
+      "error": null
+    },
+    {
+      "path": "kronozio/photoset2.jpg",
+      "quality": {
+        "width": 630,
+        "height": 362,
+        "blur_score": 1196.3,
+        "glare_fraction": 0.2935,
+        "brightness": 191.2,
+        "quality_score": 54,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text."
+        ]
+      },
+      "detection_count": 2,
+      "crops": [
+        {
+          "confidence": 0.8281,
+          "area_fraction": 0.211,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 190,
+          "height": 304,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0729,
+            "texture_entropy": 0.8073,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "40/60",
+            "centering_tb": "60/40",
+            "estimated_centering_score": 8.8,
+            "edge_wear_detected": false,
+            "corner_wear_score": 10.0,
+            "left_border_px": 34,
+            "right_border_px": 55,
+            "top_border_px": 82,
+            "bottom_border_px": 59,
+            "confidence": 0.4613,
+            "warnings": []
+          },
+          "barcodes": []
+        },
+        {
+          "confidence": 0.7701,
+          "area_fraction": 0.0428,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 89,
+          "height": 137,
+          "surface_skip": "Image is too small for surface analysis.",
+          "centering_skip": "Image is too small for centering assessment.",
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 26.258,
+      "error": null
+    },
+    {
+      "path": "kronozio/scan.png",
+      "quality": {
+        "width": 55,
+        "height": 48,
+        "blur_score": 0.0,
+        "glare_fraction": 0.0,
+        "brightness": 0.0,
+        "quality_score": 32,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Image is blurry; hold the camera steady or rescan.",
+          "Image is too dark."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 0.713,
+      "error": null
+    },
+    {
+      "path": "kronozio/seeonkronozio.jpg",
+      "quality": {
+        "width": 27,
+        "height": 28,
+        "blur_score": 3571.26,
+        "glare_fraction": 0.1495,
+        "brightness": 187.16,
+        "quality_score": 54,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 0.535,
+      "error": null
+    },
+    {
+      "path": "top/08350F93-D658-44AF-81AB-E2D7FA7F0555.jpeg",
+      "quality": {
+        "width": 816,
+        "height": 1280,
+        "blur_score": 1037.79,
+        "glare_fraction": 0.0,
+        "brightness": 65.27,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.7878,
+          "area_fraction": 0.7873,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 815,
+          "height": 1279,
+          "surface": {
+            "detected_surface_type": "WAVE",
+            "refractor_confidence": 0.5,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0062,
+            "texture_entropy": 0.7374,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "The image contains limited specular evidence; the detected refractor family may be incorrect.",
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "55/45",
+            "centering_tb": "50/50",
+            "estimated_centering_score": 9.7,
+            "edge_wear_detected": false,
+            "corner_wear_score": 9.7,
+            "left_border_px": 57,
+            "right_border_px": 50,
+            "top_border_px": 185,
+            "bottom_border_px": 185,
+            "confidence": 0.8497,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 91.987,
+      "error": null
+    },
+    {
+      "path": "top/1CCF5ED5-D69A-4D21-BF52-2FA4A10484A9.jpeg",
+      "quality": {
+        "width": 1320,
+        "height": 990,
+        "blur_score": 151.89,
+        "glare_fraction": 0.0002,
+        "brightness": 146.82,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.7176,
+          "area_fraction": 0.2726,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 564,
+          "height": 1049,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.5,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0186,
+            "texture_entropy": 0.7826,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "The image contains limited specular evidence; the detected refractor family may be incorrect.",
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "70/30",
+            "centering_tb": "20/80",
+            "estimated_centering_score": 6.8,
+            "edge_wear_detected": true,
+            "corner_wear_score": 1.0,
+            "left_border_px": 35,
+            "right_border_px": 14,
+            "top_border_px": 64,
+            "bottom_border_px": 299,
+            "confidence": 0.4988,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 88.296,
+      "error": null
+    },
+    {
+      "path": "top/25886FCB-EA45-4049-9A13-B8FC163F8874.png",
+      "quality": {
+        "width": 1320,
+        "height": 2868,
+        "blur_score": 592.03,
+        "glare_fraction": 0.0602,
+        "brightness": 34.16,
+        "quality_score": 68,
+        "warnings": [
+          "Some glare is present; tilt the card or diffuse the light.",
+          "Image is too dark."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 218.649,
+      "error": null
+    },
+    {
+      "path": "top/27A831A0-D54C-4201-BBDD-7F0516D29B00.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 296.64,
+        "glare_fraction": 0.0,
+        "brightness": 76.43,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 91.648,
+      "error": null
+    },
+    {
+      "path": "top/2EA894EB-FDD9-440D-92F0-B202541EF7F7.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 2360.41,
+        "glare_fraction": 0.0114,
+        "brightness": 135.45,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.8703,
+          "area_fraction": 0.5969,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 1057,
+          "height": 1411,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.1152,
+            "texture_entropy": 0.8342,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "60/40",
+            "centering_tb": "45/55",
+            "estimated_centering_score": 8.8,
+            "edge_wear_detected": true,
+            "corner_wear_score": 1.0,
+            "left_border_px": 322,
+            "right_border_px": 198,
+            "top_border_px": 160,
+            "bottom_border_px": 198,
+            "confidence": 0.5589,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 106.995,
+      "error": null
+    },
+    {
+      "path": "top/3FBA11DE-61A0-44AB-B09E-60451A91EFFB.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 1240.02,
+        "glare_fraction": 0.0092,
+        "brightness": 127.65,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.8464,
+          "area_fraction": 0.7139,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 1151,
+          "height": 1535,
+          "surface": {
+            "detected_surface_type": "BASE",
+            "refractor_confidence": 0.36,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.1004,
+            "texture_entropy": 0.8029,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "Reflective evidence was not strong enough to assign a refractor family; BASE is a conservative fallback.",
+              "Surface classification is low-confidence; confirm the parallel from a second angle or catalog match."
+            ]
+          },
+          "centering": {
+            "centering_lr": "50/50",
+            "centering_tb": "30/70",
+            "estimated_centering_score": 8.2,
+            "edge_wear_detected": true,
+            "corner_wear_score": 1.0,
+            "left_border_px": 270,
+            "right_border_px": 252,
+            "top_border_px": 63,
+            "bottom_border_px": 132,
+            "confidence": 0.8115,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 102.453,
+      "error": null
+    },
+    {
+      "path": "top/4E862F10-C956-4A4B-B931-F39E59017084.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 565.58,
+        "glare_fraction": 0.0221,
+        "brightness": 113.24,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 68.532,
+      "error": null
+    },
+    {
+      "path": "top/67C82A79-9279-4FCD-B77D-35DA2554EC9C.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 1315.96,
+        "glare_fraction": 0.0221,
+        "brightness": 122.42,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.8617,
+          "area_fraction": 0.7114,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 1151,
+          "height": 1535,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.1186,
+            "texture_entropy": 0.812,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "50/50",
+            "centering_tb": "25/75",
+            "estimated_centering_score": 7.5,
+            "edge_wear_detected": true,
+            "corner_wear_score": 1.0,
+            "left_border_px": 240,
+            "right_border_px": 255,
+            "top_border_px": 39,
+            "bottom_border_px": 120,
+            "confidence": 0.8225,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 103.782,
+      "error": null
+    },
+    {
+      "path": "top/74F3E422-CC85-42B8-8A19-71C46DC98C18.jpeg",
+      "quality": {
+        "width": 1320,
+        "height": 1760,
+        "blur_score": 171.83,
+        "glare_fraction": 0.0001,
+        "brightness": 141.19,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.7822,
+          "area_fraction": 0.277,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 882,
+          "height": 1062,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0262,
+            "texture_entropy": 0.776,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "50/50",
+            "centering_tb": "55/45",
+            "estimated_centering_score": 9.3,
+            "edge_wear_detected": false,
+            "corner_wear_score": 10.0,
+            "left_border_px": 168,
+            "right_border_px": 170,
+            "top_border_px": 257,
+            "bottom_border_px": 191,
+            "confidence": 0.4391,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 116.829,
+      "error": null
+    },
+    {
+      "path": "top/A12FD97A-0774-4794-A56C-BAC3B3D0D362.jpeg",
+      "quality": {
+        "width": 1320,
+        "height": 2309,
+        "blur_score": 81.84,
+        "glare_fraction": 0.0011,
+        "brightness": 120.45,
+        "quality_score": 88,
+        "warnings": [
+          "Image is slightly soft; small print may be unreliable."
+        ]
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.864,
+          "area_fraction": 0.3392,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 884,
+          "height": 1259,
+          "surface": {
+            "detected_surface_type": "BASE",
+            "refractor_confidence": 0.36,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0689,
+            "texture_entropy": 0.7958,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "Reflective evidence was not strong enough to assign a refractor family; BASE is a conservative fallback.",
+              "Surface classification is low-confidence; confirm the parallel from a second angle or catalog match."
+            ]
+          },
+          "centering": {
+            "centering_lr": "10/90",
+            "centering_tb": "60/40",
+            "estimated_centering_score": 6.1,
+            "edge_wear_detected": false,
+            "corner_wear_score": 9.9,
+            "left_border_px": 34,
+            "right_border_px": 285,
+            "top_border_px": 52,
+            "bottom_border_px": 32,
+            "confidence": 0.6639,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 123.793,
+      "error": null
+    },
+    {
+      "path": "top/B7E3F2A4-6DBA-44DB-A9B5-099A8362AB57.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 1604.43,
+        "glare_fraction": 0.0046,
+        "brightness": 135.05,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.9176,
+          "area_fraction": 0.7327,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 1058,
+          "height": 1374,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.1188,
+            "texture_entropy": 0.8366,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "20/80",
+            "centering_tb": "55/45",
+            "estimated_centering_score": 7.2,
+            "edge_wear_detected": true,
+            "corner_wear_score": 8.5,
+            "left_border_px": 27,
+            "right_border_px": 94,
+            "top_border_px": 97,
+            "bottom_border_px": 75,
+            "confidence": 0.5955,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 93.462,
+      "error": null
+    },
+    {
+      "path": "top/BFF3D61D-57F1-4BB4-AC20-FEFAE36D8DB4.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 960.07,
+        "glare_fraction": 0.0084,
+        "brightness": 125.68,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.7898,
+          "area_fraction": 0.6156,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 1151,
+          "height": 1447,
+          "surface": {
+            "detected_surface_type": "BASE",
+            "refractor_confidence": 0.36,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0765,
+            "texture_entropy": 0.8034,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "Reflective evidence was not strong enough to assign a refractor family; BASE is a conservative fallback.",
+              "Surface classification is low-confidence; confirm the parallel from a second angle or catalog match."
+            ]
+          },
+          "centering": {
+            "centering_lr": "40/60",
+            "centering_tb": "75/25",
+            "estimated_centering_score": 7.3,
+            "edge_wear_detected": true,
+            "corner_wear_score": 3.3,
+            "left_border_px": 229,
+            "right_border_px": 376,
+            "top_border_px": 305,
+            "bottom_border_px": 93,
+            "confidence": 0.6331,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 121.234,
+      "error": null
+    },
+    {
+      "path": "top/C5635A81-EFDC-4F21-B979-958DDCF0E57B.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 616.98,
+        "glare_fraction": 0.0075,
+        "brightness": 122.34,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.7582,
+          "area_fraction": 0.1598,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 642,
+          "height": 864,
+          "surface": {
+            "detected_surface_type": "BASE",
+            "refractor_confidence": 0.36,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0247,
+            "texture_entropy": 0.7802,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "Reflective evidence was not strong enough to assign a refractor family; BASE is a conservative fallback.",
+              "Surface classification is low-confidence; confirm the parallel from a second angle or catalog match."
+            ]
+          },
+          "centering": {
+            "centering_lr": "50/50",
+            "centering_tb": "45/55",
+            "estimated_centering_score": 9.5,
+            "edge_wear_detected": true,
+            "corner_wear_score": 1.6,
+            "left_border_px": 19,
+            "right_border_px": 17,
+            "top_border_px": 22,
+            "bottom_border_px": 27,
+            "confidence": 0.99,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 86.259,
+      "error": null
+    },
+    {
+      "path": "top/D95883E2-DB16-4CC5-A171-DDBEA0EE4649.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 309.14,
+        "glare_fraction": 0.0068,
+        "brightness": 149.81,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 40.213,
+      "error": null
+    },
+    {
+      "path": "top/F01552E5-C396-4C1D-92EE-423878B981DC.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 2111.76,
+        "glare_fraction": 0.0034,
+        "brightness": 126.85,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.9134,
+          "area_fraction": 0.7775,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 1084,
+          "height": 1451,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.74,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0477,
+            "texture_entropy": 0.8444,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "65/35",
+            "centering_tb": "40/60",
+            "estimated_centering_score": 8.3,
+            "edge_wear_detected": true,
+            "corner_wear_score": 1.0,
+            "left_border_px": 105,
+            "right_border_px": 51,
+            "top_border_px": 45,
+            "bottom_border_px": 62,
+            "confidence": 0.786,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 93.272,
+      "error": null
+    },
+    {
+      "path": "top/IMG_2388D36B-4600-458A-9FE5-D719C4EB671A.jpeg",
+      "quality": {
+        "width": 1320,
+        "height": 1760,
+        "blur_score": 415.35,
+        "glare_fraction": 0.0055,
+        "brightness": 87.41,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 60.855,
+      "error": null
+    },
+    {
+      "path": "top/IMG_2D288009-2F3A-41A3-86F2-F8F10B96D510.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 679.45,
+        "glare_fraction": 0.0185,
+        "brightness": 128.6,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 72.5,
+      "error": null
+    },
+    {
+      "path": "top/IMG_32A02127-646D-48BD-8028-53B4F79585FB.jpeg",
+      "quality": {
+        "width": 1320,
+        "height": 1760,
+        "blur_score": 238.75,
+        "glare_fraction": 0.0041,
+        "brightness": 82.98,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 54.146,
+      "error": null
+    },
+    {
+      "path": "top/IMG_3476(1).jpeg",
+      "quality": {
+        "width": 1536,
+        "height": 434,
+        "blur_score": 1050.25,
+        "glare_fraction": 0.001,
+        "brightness": 204.16,
+        "quality_score": 82,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 13.868,
+      "error": null
+    },
+    {
+      "path": "top/IMG_3584.jpeg",
+      "quality": {
+        "width": 1152,
+        "height": 1536,
+        "blur_score": 276.56,
+        "glare_fraction": 0.0075,
+        "brightness": 104.26,
+        "quality_score": 100,
+        "warnings": []
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.6927,
+          "area_fraction": 0.175,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 699,
+          "height": 776,
+          "surface": {
+            "detected_surface_type": "CRACKED_ICE",
+            "refractor_confidence": 0.5,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.0125,
+            "texture_entropy": 0.7755,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "The image contains limited specular evidence; the detected refractor family may be incorrect.",
+              "A single photograph can only suggest a surface family; do not treat this result as an exact parallel confirmation."
+            ]
+          },
+          "centering": {
+            "centering_lr": "20/80",
+            "centering_tb": "20/80",
+            "estimated_centering_score": 7.1,
+            "edge_wear_detected": true,
+            "corner_wear_score": 9.5,
+            "left_border_px": 58,
+            "right_border_px": 214,
+            "top_border_px": 44,
+            "bottom_border_px": 153,
+            "confidence": 0.5784,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 87.146,
+      "error": null
+    },
+    {
+      "path": "top/IMG_8B6D2CD7-A899-47A6-B116-AF80A7C67D09.jpeg",
+      "quality": {
+        "width": 1320,
+        "height": 1760,
+        "blur_score": 59.22,
+        "glare_fraction": 0.0014,
+        "brightness": 106.23,
+        "quality_score": 88,
+        "warnings": [
+          "Image is slightly soft; small print may be unreliable."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 47.707,
+      "error": null
+    },
+    {
+      "path": "top/Screenshot 2026-06-29 at 4.45.08\u202fAM.jpeg",
+      "quality": {
+        "width": 707,
+        "height": 1536,
+        "blur_score": 1352.41,
+        "glare_fraction": 0.0656,
+        "brightness": 44.6,
+        "quality_score": 68,
+        "warnings": [
+          "Some glare is present; tilt the card or diffuse the light.",
+          "Image is too dark."
+        ]
+      },
+      "detection_count": 1,
+      "crops": [
+        {
+          "confidence": 0.8475,
+          "area_fraction": 0.0946,
+          "detector_name": "opencv_contour_v2.16",
+          "width": 248,
+          "height": 421,
+          "surface": {
+            "detected_surface_type": "BASE",
+            "refractor_confidence": 0.36,
+            "rainbow_variance": 1.0,
+            "reflectivity_score": 0.1142,
+            "texture_entropy": 0.7559,
+            "high_reflectivity_patches": 8,
+            "classifier_mode": "opencv_single_frame_heuristic_v3_bounded",
+            "warnings": [
+              "Reflective evidence was not strong enough to assign a refractor family; BASE is a conservative fallback.",
+              "Surface classification is low-confidence; confirm the parallel from a second angle or catalog match."
+            ]
+          },
+          "centering": {
+            "centering_lr": "30/70",
+            "centering_tb": "45/55",
+            "estimated_centering_score": 7.8,
+            "edge_wear_detected": true,
+            "corner_wear_score": 6.9,
+            "left_border_px": 25,
+            "right_border_px": 63,
+            "top_border_px": 28,
+            "bottom_border_px": 32,
+            "confidence": 0.6986,
+            "warnings": []
+          },
+          "barcodes": []
+        }
+      ],
+      "latency_ms": 62.921,
+      "error": null
+    },
+    {
+      "path": "top/image(1).png",
+      "quality": {
+        "width": 1125,
+        "height": 634,
+        "blur_score": 2001.86,
+        "glare_fraction": 0.4936,
+        "brightness": 189.37,
+        "quality_score": 54,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 22.446,
+      "error": null
+    },
+    {
+      "path": "top/image(10).png",
+      "quality": {
+        "width": 1920,
+        "height": 1032,
+        "blur_score": 1031.81,
+        "glare_fraction": 0.2882,
+        "brightness": 202.79,
+        "quality_score": 72,
+        "warnings": [
+          "Heavy glare may obscure foil, labels, or card text."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 115.474,
+      "error": null
+    },
+    {
+      "path": "top/image(2).png",
+      "quality": {
+        "width": 1125,
+        "height": 634,
+        "blur_score": 3866.41,
+        "glare_fraction": 0.8453,
+        "brightness": 245.91,
+        "quality_score": 39,
+        "warnings": [
+          "Low resolution may hide card numbers, serials, or parallel details.",
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 25.79,
+      "error": null
+    },
+    {
+      "path": "top/image(3).png",
+      "quality": {
+        "width": 1920,
+        "height": 1032,
+        "blur_score": 1128.56,
+        "glare_fraction": 0.883,
+        "brightness": 245.5,
+        "quality_score": 57,
+        "warnings": [
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 71.579,
+      "error": null
+    },
+    {
+      "path": "top/image(4).png",
+      "quality": {
+        "width": 1920,
+        "height": 1032,
+        "blur_score": 1581.66,
+        "glare_fraction": 0.9097,
+        "brightness": 247.02,
+        "quality_score": 57,
+        "warnings": [
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 71.291,
+      "error": null
+    },
+    {
+      "path": "top/image(5).png",
+      "quality": {
+        "width": 1920,
+        "height": 1032,
+        "blur_score": 1847.98,
+        "glare_fraction": 0.9224,
+        "brightness": 249.45,
+        "quality_score": 57,
+        "warnings": [
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 63.701,
+      "error": null
+    },
+    {
+      "path": "top/image(6).png",
+      "quality": {
+        "width": 1920,
+        "height": 1032,
+        "blur_score": 2295.58,
+        "glare_fraction": 0.9033,
+        "brightness": 246.51,
+        "quality_score": 57,
+        "warnings": [
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 62.659,
+      "error": null
+    },
+    {
+      "path": "top/image(7).png",
+      "quality": {
+        "width": 1920,
+        "height": 1032,
+        "blur_score": 2207.83,
+        "glare_fraction": 0.8969,
+        "brightness": 245.87,
+        "quality_score": 57,
+        "warnings": [
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 63.671,
+      "error": null
+    },
+    {
+      "path": "top/image(8).png",
+      "quality": {
+        "width": 1920,
+        "height": 1032,
+        "blur_score": 968.69,
+        "glare_fraction": 0.0463,
+        "brightness": 33.9,
+        "quality_score": 80,
+        "warnings": [
+          "Image is too dark."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 79.904,
+      "error": null
+    },
+    {
+      "path": "top/image(9).png",
+      "quality": {
+        "width": 960,
+        "height": 1032,
+        "blur_score": 3548.66,
+        "glare_fraction": 0.8058,
+        "brightness": 230.85,
+        "quality_score": 57,
+        "warnings": [
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 43.193,
+      "error": null
+    },
+    {
+      "path": "top/image.png",
+      "quality": {
+        "width": 1920,
+        "height": 1032,
+        "blur_score": 4483.83,
+        "glare_fraction": 0.9077,
+        "brightness": 245.79,
+        "quality_score": 57,
+        "warnings": [
+          "Heavy glare may obscure foil, labels, or card text.",
+          "Image is overexposed."
+        ]
+      },
+      "detection_count": 0,
+      "crops": [],
+      "latency_ms": 65.137,
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+ManeFlow is a card-intelligence and operations platform built for collectors, dealers, and card shops.
+
+Upload a single card, a full card spread, or an ordered scanner batch. ManeFlow separates visible cards, rotates and crops each item, reads card evidence, and returns independent review records instead of repeating one guess across a group.
+
+For readable PSA slabs, ManeFlow can verify certification data through an authorized server-side PSA integration. Raw cards use an evidence-first review workflow that distinguishes Exact, Likely, and Unresolved matches. Current releases, including 2026 products, are supported without forcing cards into older years.
+
+ManeFlow also provides a private collection vault, grading workflow, card-shop operations, service requests, data imports, storefront tools, correction review, and research links. Pricing remains separated from identification: ManeFlow does not present an unsupported active listing or an unverified model guess as a confirmed sold value.
+
+Key workflows require an internet connection for AI card recognition, account synchronization, PSA verification, eBay research, and other live-provider data.
+
+ManeFlow is developed for Memphis Card Company LLC — Memphis made, collector built.

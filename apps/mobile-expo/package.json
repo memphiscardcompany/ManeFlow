@@ -1,0 +1,39 @@
+{
+  "name": "maneflow-mobile",
+  "version": "2.22.0-beta.1",
+  "private": true,
+  "packageManager": "npm@11.16.0",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "build:android": "eas build --platform android --profile production",
+    "build:ios": "eas build --platform ios --profile production",
+    "submit": "eas submit --platform all --profile production"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "57.0.4",
+    "expo-camera": "57.0.1",
+    "expo-image-picker": "57.0.2",
+    "expo-secure-store": "57.0.0",
+    "expo-status-bar": "57.0.0",
+    "expo-updates": "57.0.6",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-safe-area-context": "5.7.0",
+    "expo-build-properties": "57.0.7"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.17",
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "xcode": {
+      "uuid": "11.1.1"
+    }
+  }
+}

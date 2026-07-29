@@ -1,0 +1,29 @@
+{
+  "id": "./",
+  "name": "ManeFlow",
+  "short_name": "ManeFlow",
+  "description": "Scan, identify, verify, value, and manage trading cards from one card-intelligence workspace.",
+  "lang": "en-US",
+  "dir": "ltr",
+  "start_url": "./#collector",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#050a10",
+  "theme_color": "#07111c",
+  "orientation": "any",
+  "categories": ["business", "shopping", "productivity"],
+  "icons": [
+    {"src":"./icons/icon-192x192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"./icons/icon-512x512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"./icons/icon-maskable-512x512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ],
+  "shortcuts": [
+    {"name":"Scan and Identify","short_name":"Scan","url":"./#collector","icons":[{"src":"./icons/icon-192x192.png","sizes":"192x192"}]},
+    {"name":"Shop Operations","short_name":"Operations","url":"./#ops"},
+    {"name":"Desktop Command Center","short_name":"Desktop","url":"./#desktop"},
+    {"name":"Data Hub","short_name":"Data","url":"./#data"}
+  ],
+  "launch_handler": {"client_mode":"navigate-existing"},
+  "prefer_related_applications": false
+}

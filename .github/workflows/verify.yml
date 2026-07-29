@@ -1,0 +1,88 @@
+name: Verify ManeFlow
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-and-pwa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Verify reproducible public lockfile sources
+        run: node scripts/verify-lockfile-sources.mjs
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run verify
+      - run: npm run security:scan
+      - name: Build commit-closed source capsule
+        run: npm run package
+      - name: Verify source capsule inventory and evidence
+        run: npm run verify:release
+
+  vision-cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: vision-worker
+    env:
+      MANEFLOW_COMPUTE_DEVICE: cpu
+      MANEFLOW_GPU_ALLOW_CPU_FALLBACK: "false"
+      EMBEDDING_ENABLED: "false"
+      CARD_DETECTOR_BACKEND: classical
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Record Python runtime
+        run: python3 --version
+      - name: Install deterministic CPU vision dependencies
+        run: python3 -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
+      - name: Run CPU-only vision tests
+        run: python3 -m pytest app/tests -q
+      - name: Verify GPU doctor fails safely to CPU on a non-GPU runner
+        run: python3 -m maneflow_vision.gpu.status
+      - name: Validate empty model registry and public dataset schema
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          registry = json.loads(Path('../artifacts/model-registry.json').read_text())
+          assert registry == {'schema_version': 1, 'models': []}
+          schema = json.loads(Path('../data/dataset-manifest.schema.json').read_text())
+          assert schema['title'] == 'ManeFlow dataset manifest record'
+          PY
+
+  native-client:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/mobile-expo
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile-expo/package-lock.json
+      - name: Verify reproducible public lockfile sources
+        working-directory: .
+        run: node scripts/verify-lockfile-sources.mjs
+      - name: Pin the reviewed npm toolchain
+        run: npm install --global npm@11.16.0 --no-audit --no-fund
+      - name: Install native dependencies deterministically
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm audit --omit=dev --audit-level=high

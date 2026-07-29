@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "status": "NOT_RUN",
+  "authorization_state": "QUARANTINED_PENDING_REVIEW",
+  "files_discovered": 0,
+  "training_permitted": false,
+  "reason": "The approximately 800 owner images were not present in this execution environment."
+}

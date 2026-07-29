@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07090d">
+  <meta name="description" content="ManeFlow identifies cards, explains real market comps, manages collections, and turns price intelligence into action.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <title>ManeFlow - Card Intelligence</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#/home" aria-label="ManeFlow home">
+        <span class="brand-mark">M</span>
+        <span><strong>ManeFlow</strong><small>Card intelligence</small></span>
+      </a>
+      <div class="top-actions">
+        <span id="desktop-status" class="service-chip hidden" title="Local service status"><span class="service-dot"></span><span class="service-label">Starting</span></span>
+        <button id="install-button" class="icon-button hidden" aria-label="Install ManeFlow" title="Install ManeFlow">Install</button>
+        <a id="desktop-settings" class="icon-button hidden" href="#/settings" aria-label="ManeFlow settings" title="Settings">⚙</a>
+        <a id="account-button" class="account-chip" href="#/account" aria-label="Account"><span class="account-dot"></span><span id="account-label">Guest</span></a>
+      </div>
+    </header>
+
+    <main id="view" tabindex="-1" aria-live="polite"></main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <a href="#/home" data-route="home"><span>H</span><small>Home</small></a>
+      <a href="#/search" data-route="search"><span>S</span><small>Search</small></a>
+      <a class="scan-nav" href="#/scan" data-route="scan"><span>C</span><small>Scan</small></a>
+      <a href="#/lots" data-route="lots"><span>L</span><small>Lots</small></a>
+      <a href="#/survey" data-route="survey"><span>R</span><small>Survey</small></a>
+      <a href="#/bulk" data-route="bulk"><span>B</span><small>Bulk</small></a>
+      <a href="#/vault" data-route="vault"><span>V</span><small>Vault</small></a>
+      <a href="#/sell" data-route="sell"><span>$</span><small>Sell</small></a>
+    </nav>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <div id="modal-root"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

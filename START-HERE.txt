@@ -1,0 +1,82 @@
+ManeFlow 2.22.0-beta.1 — Unified Windows Beta
+
+THIS IS THE COMPLETE EXTRACT-AND-RUN MANEFLOW TEST PACKAGE.
+It preserves the ManeFlow v2.5 interface and adds the later vision, lot, Ricoh, provider,
+PostgreSQL/pgvector, local OCR, vector-search, and security upgrades.
+
+WINDOWS SETUP
+1. Right-click the ZIP and choose Extract All.
+2. Install Node.js 22 LTS and Python 3.11 or 3.12 if needed.
+3. Double-click Configure-ManeFlow.cmd to create/open the private local .env file.
+4. Double-click Start-ManeFlow.cmd.
+5. First launch creates an isolated Python environment and installs imaging dependencies.
+6. ManeFlow opens at http://127.0.0.1:4321.
+7. Use Stop-ManeFlow.cmd before moving or deleting the folder.
+8. Use Repair-ManeFlow-Vision.cmd only if the Python imaging environment is damaged.
+9. Optional: run Install-ManeFlow-Accelerators.cmd after the normal beta works to add local ML acceleration.
+
+
+ANY-ORDER PHONE PHOTO WORKFLOW
+- Open Bulk Intake and choose "Any order — auto group and identify."
+- Select one folder containing fronts, backs, and reflective-angle photos in any order.
+- Do not rename or label the cards. ManeFlow uses image evidence, EXIF capture time, certs, serials, OCR, and visual agreement.
+- Owner-authorized photos are added to the rights-cleared learning queue automatically.
+- The learning monitor runs only when new images exist; unchanged or empty cycles are skipped.
+
+ADAPTIVE LEARNING
+- Start-ManeFlow.cmd launches the safe learning monitor with the local services.
+- Start-ManeFlow-Training.cmd forces one immediate learning cycle.
+- Current status: data\training\training-state.json or .runtime\windows-beta\data\training\training-state.json
+- Marketplace images, prices, customer data, and inventory cost never enter training.
+- ManeFlow will not claim neural model improvement until verified labels, training, and benchmark promotion actually complete.
+
+LOCAL BETA DATA AND LOGS
+.runtime\windows-beta\data
+.runtime\windows-beta\logs
+.runtime\vision-data
+
+POSTGRESQL / PGVECTOR
+- JSON mode remains the default for the easiest local beta test.
+- For production-foundation testing, configure DATABASE_URL, run npm run db:migrate,
+  then npm run db:verify and set STORAGE_MODE=postgres.
+- PostgreSQL mode enables transaction-safe shared state, RLS shop isolation, catalog
+  embeddings, and HNSW visual candidate search.
+
+VISION MODELS
+- The package contains the production adapters but does not contain proprietary trained weights.
+- CARD_DETECTOR_MODEL_PATH enables a trained instance-segmentation detector.
+- MANEFLOW_EMBEDDING_MODEL_PATH enables a rights-cleared 1152-D ONNX image encoder.
+- Without those models, ManeFlow uses conservative fallbacks and manual review.
+
+PROVIDER CONFIGURATION
+- PSA, eBay, JustTCG, SportsCardsPro, and optional OpenAI values belong in the private .env.
+- Leave EBAY_MARKETPLACE_INSIGHTS_ENABLED=false unless eBay separately grants access.
+- API keys are not stored in source files or release archives.
+
+BETA WORKFLOWS
+- Single-card, raw, slab, cert, and holder scans
+- Multiple-card and mixed-scene detection
+- eBay lot-image analysis and BIN-versus-value calculations
+- Parallel/refractor family evidence
+- Centering and visible edge/corner wear estimates
+- Ricoh duplex batch intake and front/back pairing
+- Batch correction and permissioned learning-data contribution
+- Vault, grading, inventory, selling, pricing, and provider market context
+
+VERIFY
+Open a terminal in the extracted folder and run:
+npm install --omit=optional
+npm run verify:beta
+
+ManeFlow intentionally abstains when exact identity, variant, grade, or verified pricing
+cannot be supported by evidence.
+
+EXTERNAL GATE EXECUTION
+- Roboflow model: docs\ROBOFLOW_MODEL_GATE.md
+- Encoder export: docs\SIGLIP2_ENCODER_GATE.md
+- Authorized catalog: docs\AUTHORIZED_CATALOG_INGESTION_GATE.md
+- Live PostgreSQL: docs\POSTGRES_LIVE_VALIDATION_GATE.md
+- Ricoh hardware: docs\RICOH_HARDWARE_VALIDATION_GATE.md
+- Vision release metrics: docs\VISION_RELEASE_QUALITY_GATES.md
+- Windows signing: docs\WINDOWS_CODE_SIGNING_GATE.md
+- Store publication: docs\STORE_PUBLICATION_EXECUTION_GATE.md

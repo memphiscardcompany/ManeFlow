@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "maneflow-vision-release-gates-v1.0",
+  "profiles": {
+    "private_beta": {
+      "description": "Minimum internal gate for controlled beta use. Passing does not establish superiority over competitors.",
+      "minimumHumanLabeledImages": 500,
+      "metrics": {
+        "rawCardDetectionRecall": { "operator": "gte", "threshold": 0.97 },
+        "slabIdentityCertAccuracy": { "operator": "gte", "threshold": 0.95 },
+        "multiCardSegmentationRecall": { "operator": "gte", "threshold": 0.90 },
+        "exactIdentityTop1Accuracy": { "operator": "gte", "threshold": 0.85 },
+        "exactParallelVariantAccuracy": { "operator": "gte", "threshold": 0.80 },
+        "falseConfidentMatchRate": { "operator": "lte", "threshold": 0.03 },
+        "duplicateGroupingF1": { "operator": "gte", "threshold": 0.90 },
+        "edgeP95LatencyMs": { "operator": "lte", "threshold": 250 },
+        "cloudP95LatencyMs": { "operator": "lte", "threshold": 3000 }
+      }
+    },
+    "production": {
+      "description": "Production recognition gate for broad shop deployment. It is not a competitor-superiority claim.",
+      "minimumHumanLabeledImages": 5000,
+      "metrics": {
+        "rawCardDetectionRecall": { "operator": "gte", "threshold": 0.99 },
+        "slabIdentityCertAccuracy": { "operator": "gte", "threshold": 0.98 },
+        "multiCardSegmentationRecall": { "operator": "gte", "threshold": 0.95 },
+        "exactIdentityTop1Accuracy": { "operator": "gte", "threshold": 0.92 },
+        "exactParallelVariantAccuracy": { "operator": "gte", "threshold": 0.88 },
+        "falseConfidentMatchRate": { "operator": "lte", "threshold": 0.01 },
+        "duplicateGroupingF1": { "operator": "gte", "threshold": 0.95 },
+        "edgeP95LatencyMs": { "operator": "lte", "threshold": 150 },
+        "cloudP95LatencyMs": { "operator": "lte", "threshold": 2000 }
+      }
+    },
+    "superiority_claim": {
+      "description": "Evidence gate required before publicly claiming better recognition than named competitors. Also requires a contemporaneous head-to-head protocol and identical image set.",
+      "minimumHumanLabeledImages": 10000,
+      "metrics": {
+        "rawCardDetectionRecall": { "operator": "gte", "threshold": 0.995 },
+        "slabIdentityCertAccuracy": { "operator": "gte", "threshold": 0.99 },
+        "multiCardSegmentationRecall": { "operator": "gte", "threshold": 0.97 },
+        "exactIdentityTop1Accuracy": { "operator": "gte", "threshold": 0.95 },
+        "exactParallelVariantAccuracy": { "operator": "gte", "threshold": 0.92 },
+        "falseConfidentMatchRate": { "operator": "lte", "threshold": 0.005 },
+        "duplicateGroupingF1": { "operator": "gte", "threshold": 0.97 },
+        "edgeP95LatencyMs": { "operator": "lte", "threshold": 100 },
+        "cloudP95LatencyMs": { "operator": "lte", "threshold": 1500 }
+      },
+      "requiresHeadToHeadComparison": true
+    }
+  }
+}

@@ -1,0 +1,109 @@
+name: Build Signed ManeFlow Windows Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: Release label used for the uploaded artifact
+        required: true
+        default: ManeFlow-Windows-Signed
+      build_store_package:
+        description: Also build the Microsoft Store AppX package
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  signed-windows-release:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            vision-worker/requirements-desktop.txt
+            vision-worker/requirements-runtime.txt
+
+      - name: Require Windows signing secrets
+        shell: pwsh
+        run: |
+          if (-not $env:CSC_LINK) { throw "WINDOWS_CSC_LINK is not configured." }
+          if (-not $env:CSC_KEY_PASSWORD) { throw "WINDOWS_CSC_KEY_PASSWORD is not configured." }
+
+      - name: Install core dependencies
+        shell: pwsh
+        run: npm install --omit=optional --no-audit --no-fund
+
+      - name: Install vision dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r vision-worker/requirements-desktop.txt
+
+      - name: Run complete ManeFlow release gate
+        shell: pwsh
+        run: npm run verify:beta
+
+      - name: Prepare embedded Python runtime
+        shell: pwsh
+        run: python scripts/prepare-windows-embedded-runtime.py
+
+      - name: Install desktop dependencies
+        working-directory: apps/desktop-electron
+        shell: pwsh
+        run: npm install --no-audit --no-fund
+
+      - name: Build signed installer and portable executable
+        working-directory: apps/desktop-electron
+        shell: pwsh
+        run: |
+          Remove-Item dist -Recurse -Force -ErrorAction SilentlyContinue
+          npm run package:windows:signed
+
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: ./scripts/verify-windows-signature.ps1 -Path apps/desktop-electron/dist -ExpectedPublisher "Memphis Card Company LLC"
+
+      - name: Build Microsoft Store package
+        if: ${{ inputs.build_store_package }}
+        working-directory: apps/desktop-electron
+        shell: pwsh
+        env:
+          MICROSOFT_STORE_PUBLISHER: ${{ secrets.MICROSOFT_STORE_PUBLISHER }}
+        run: |
+          if (-not $env:MICROSOFT_STORE_PUBLISHER) { throw "MICROSOFT_STORE_PUBLISHER is not configured." }
+          npm run package:windows-store -- --config.appx.publisher="$env:MICROSOFT_STORE_PUBLISHER" --config.forceCodeSigning=true
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $output = "apps/desktop-electron/dist/SHA256SUMS.txt"
+          Remove-Item $output -ErrorAction SilentlyContinue
+          Get-ChildItem apps/desktop-electron/dist -File | Where-Object { $_.Extension -in ".exe", ".appx", ".msix" } | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Add-Content -Encoding utf8 $output
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.release_name }}
+          path: |
+            apps/desktop-electron/dist/*.exe
+            apps/desktop-electron/dist/*.appx
+            apps/desktop-electron/dist/*.msix
+            apps/desktop-electron/dist/SHA256SUMS.txt
+          if-no-files-found: error

@@ -1,0 +1,71 @@
+{
+  "name": "ManeFlow Card Intelligence",
+  "short_name": "ManeFlow",
+  "description": "Single-card and mixed-lot identification, pricing intelligence, Vault, grading, selling, and bulk intake.",
+  "start_url": "/#/home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#07090d",
+  "theme_color": "#07090d",
+  "categories": [
+    "sports",
+    "finance",
+    "shopping",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "/assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan a card",
+      "url": "/#/scan",
+      "icons": [
+        {
+          "src": "/assets/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Extract a cert",
+      "url": "/#/cert",
+      "icons": [
+        {
+          "src": "/assets/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Search cards",
+      "url": "/#/search",
+      "icons": [
+        {
+          "src": "/assets/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "My Vault",
+      "url": "/#/vault",
+      "icons": [
+        {
+          "src": "/assets/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

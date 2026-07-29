@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="500" viewBox="0 0 360 500" role="img" aria-labelledby="title desc">
+  <title id="title">ManeFlow card image pending</title>
+  <desc id="desc">A premium placeholder used when a rights-approved card image source is not configured.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#151d2a"/>
+      <stop offset="0.58" stop-color="#0a0f17"/>
+      <stop offset="1" stop-color="#241f12"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" x2="1">
+      <stop offset="0" stop-color="#f6d879"/>
+      <stop offset="1" stop-color="#b88923"/>
+    </linearGradient>
+  </defs>
+  <rect width="360" height="500" rx="30" fill="url(#bg)"/>
+  <rect x="18" y="18" width="324" height="464" rx="24" fill="none" stroke="#3f4a5d" stroke-width="2"/>
+  <rect x="38" y="38" width="284" height="424" rx="18" fill="#0d131d" stroke="#7a6029" stroke-width="2"/>
+  <circle cx="180" cy="168" r="62" fill="#121a27" stroke="url(#gold)" stroke-width="5"/>
+  <text x="180" y="190" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="900" fill="url(#gold)">M</text>
+  <text x="180" y="284" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="900" fill="#f9f4e7">ManeFlow</text>
+  <text x="180" y="318" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700" fill="#9aa8ba">Image source pending</text>
+  <text x="180" y="352" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#d4af37" letter-spacing="2">IDENTITY ONLY</text>
+  <rect x="78" y="392" width="204" height="14" rx="7" fill="#1b2533"/>
+  <rect x="104" y="422" width="152" height="10" rx="5" fill="#1b2533"/>
+</svg>

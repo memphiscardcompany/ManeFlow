@@ -1,0 +1,10 @@
+{
+  "file": "08350F93-D658-44AF-81AB-E2D7FA7F0555.jpeg",
+  "http_status": 200,
+  "detected_object_count": 1,
+  "selected_detection_confidence": 0.7878,
+  "quality_score": 100,
+  "identity_provider": "unconfigured",
+  "needs_manual_confirmation": true,
+  "pricing_status": "price_unverifiable"
+}

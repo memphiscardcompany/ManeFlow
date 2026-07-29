@@ -1,0 +1,31 @@
+{
+  "cli": {
+    "version": "16.32.0",
+    "appVersionSource": "remote",
+    "requireCommit": true
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "env": { "EXPO_PUBLIC_API_BASE_URL": "http://127.0.0.1:4321" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "env": { "EXPO_PUBLIC_API_BASE_URL": "https://staging-mane.memphiscardcompany.com" }
+    },
+    "production": {
+      "autoIncrement": true,
+      "channel": "production",
+      "env": { "EXPO_PUBLIC_API_BASE_URL": "https://mane.memphiscardcompany.com" }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {},
+      "android": {}
+    }
+  }
+}

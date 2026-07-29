@@ -1,0 +1,10 @@
+ManeFlow is a hosted Progressive Web App. Internet access is required for AI recognition, authentication, synchronization, official PSA lookups, eBay research, and live provider information.
+
+Primary public test path:
+1. Launch ManeFlow.
+2. Open Collector Vault.
+3. Select Scan a Card.
+4. Upload a JPG, PNG, or WebP card image or card-spread image.
+5. Review independent card crops and Exact/Likely/Unresolved results.
+
+The app does not embed PSA, eBay, or other provider credentials in the Windows package. Provider secrets remain on the hosted backend. Card pricing is intentionally blocked or labeled unverified until exact identity and acceptable comparable-sale evidence are present.

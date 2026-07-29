@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "status": "NOT_RUN",
+  "profile": "baseline",
+  "dataset_manifest_hash": null,
+  "requested_device": null,
+  "selected_device": null,
+  "metrics": null,
+  "reason": "A rights-cleared labeled evaluation set was not available."
+}

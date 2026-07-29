@@ -1,0 +1,16 @@
+{
+  "updated_at": "2026-07-26T09:14:04.367943+00:00",
+  "status": "idle_no_new_images",
+  "manifest_hash": "4b976493d1f303eead91b7fb9eb6f4d27ceb72dc414abd7b0af7275a6747b23e",
+  "last_successful_hash": "4b976493d1f303eead91b7fb9eb6f4d27ceb72dc414abd7b0af7275a6747b23e",
+  "exit_codes": {
+    "grouping_calibration": 0,
+    "automatic_labeling": 0,
+    "adaptive_training": 0
+  },
+  "calibration_path": "/mnt/data/maneflow-final-work/ManeFlow-v2.22.0-beta.1-Consolidated/data/training/grouping-calibration.json",
+  "automatic_label_report": "/mnt/data/maneflow-final-work/ManeFlow-v2.22.0-beta.1-Consolidated/data/training/automatic-label-report.json",
+  "training_state": "/mnt/data/maneflow-final-work/ManeFlow-v2.22.0-beta.1-Consolidated/data/training/training-state.json",
+  "promotion_requires_locked_benchmark": true,
+  "unchanged_cycles_skipped": 1
+}

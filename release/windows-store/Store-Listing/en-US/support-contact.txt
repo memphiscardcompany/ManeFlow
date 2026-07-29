@@ -1,0 +1,4 @@
+Publisher: Memphis Card Company LLC
+Support email: memphiscardcompany@gmail.com
+Website: https://memphiscardcompany.com
+Application: ManeFlow

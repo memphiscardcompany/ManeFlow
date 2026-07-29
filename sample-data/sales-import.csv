@@ -1,0 +1,3 @@
+provider,cardId,soldAt,price,shipping,buyerPremium,saleType,verified,confidence,title
+Licensed Partner,card_ohtani_2018_update_us1_psa10,2026-07-07T20:00:00Z,355,0,0,auction,true,0.96,2018 Topps Update Shohei Ohtani US1 PSA 10
+Seller Account Export,card_judge_2017_topps_287_psa10,2026-07-06T18:00:00Z,180,5,0,fixed_price,true,0.90,2017 Topps Aaron Judge 287 PSA 10

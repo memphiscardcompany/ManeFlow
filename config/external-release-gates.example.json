@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "maneflow-external-release-gates-v1.0",
+  "productionInfrastructure": {
+    "apiBaseUrl": "https://mane.memphiscardcompany.com",
+    "healthEndpoint": "https://mane.memphiscardcompany.com/health",
+    "privacyPolicyUrl": "https://www.memphiscardcompany.com/pages/maneflow-privacy",
+    "termsUrl": "https://www.memphiscardcompany.com/pages/maneflow-terms",
+    "supportUrl": "https://www.memphiscardcompany.com/pages/contact"
+  },
+  "windows": {
+    "partnerCenterAccountApproved": false,
+    "publisherSubject": "",
+    "codeSigningIdentityApproved": false,
+    "signedInstallerVerified": false,
+    "storePackageValidated": false
+  },
+  "apple": {
+    "developerProgramActive": false,
+    "appStoreConnectRecordCreated": false,
+    "bundleIdentifierRegistered": false,
+    "distributionCertificateConfigured": false,
+    "privacyQuestionnaireCompleted": false,
+    "reviewBuildSubmitted": false
+  },
+  "googlePlay": {
+    "developerAccountActive": false,
+    "applicationRecordCreated": false,
+    "playAppSigningEnabled": false,
+    "serviceAccountConfigured": false,
+    "dataSafetyCompleted": false,
+    "closedTestingCompleted": false,
+    "reviewBuildSubmitted": false
+  }
+}

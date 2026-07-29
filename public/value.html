@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ManeFlow Public Value</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="app-shell public-value-shell">
+    <section class="hero public-value-hero">
+      <div class="eyebrow">ManeFlow public value</div>
+      <h1 id="title">Loading value...</h1>
+      <p id="summary">Values are source-labeled estimates based only on included comps. They are not appraisals, guarantees, authentication, tax advice, or investment advice.</p>
+      <div class="actions"><a class="button primary" href="/">Open ManeFlow</a><a class="button" href="mailto:memphiscardcompany@gmail.com?subject=Consignment%20review">Consign with Memphis Card Company</a></div>
+    </section>
+    <section id="result" class="market-layout" style="margin-top:18px"></section>
+  </main>
+  <script>
+    const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+    const CARD_IMAGE_PLACEHOLDER = '/assets/card-placeholder.svg';
+    const safe = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+    const dollars = (value) => Number.isFinite(Number(value)) ? money.format(Number(value)) : 'Review needed';
+    const slug = location.pathname.split('/').filter(Boolean).pop() || '';
+    const imageFor = (card) => String(card?.image || '').trim() || CARD_IMAGE_PLACEHOLDER;
+    function compRow(comp) {
+      return `<div class="source-row"><div><strong>${safe(comp.provider || 'Source')}</strong><small>${safe(comp.soldAt || 'Unknown date')} - ${safe(comp.saleType || 'completed sale')}</small><small>${safe((comp.reasons || []).slice(0, 2).join(' - ') || comp.publicExplanation || 'Included comp')}</small></div><div style="text-align:right"><strong>${dollars(comp.allInPrice)}</strong><small>Q ${safe(comp.qualityScore ?? '-')} - Trust ${safe(comp.sourceTrustScore ?? '-')}</small></div></div>`;
+    }
+    fetch('/api/public/cards/' + encodeURIComponent(slug) + '/value').then((response) => response.json().then((data) => ({ response, data }))).then(({ response, data }) => {
+      if (!response.ok || data.error) throw new Error(data.message || 'Value unavailable');
+      const cardTitle = [data.card.year, data.card.brand, data.card.player, data.card.cardNumber ? '#' + data.card.cardNumber : '', data.card.parallel].filter(Boolean).join(' ');
+      title.textContent = cardTitle;
+      summary.textContent = data.disclaimer;
+      const quality = data.compQuality || {};
+      result.innerHTML = `
+        <section class="panel">
+          <div class="card-hero">
+            <img src="${safe(imageFor(data.card))}" alt="${safe(data.card.imageAlt || cardTitle)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${CARD_IMAGE_PLACEHOLDER}'">
+            <div>
+              <div class="panel-title"><div><div class="eyebrow">Estimated market range</div><h2>${dollars(data.value)}</h2></div><span class="status ${safe(data.marketMode || 'demo')}">${safe(String(data.marketMode || 'demo').replaceAll('_', ' '))}</span></div>
+              <p class="range">${dollars(data.range?.low)} to ${dollars(data.range?.high)}</p>
+              <p class="subtle">${safe(data.card.imageMeta?.rightsNotes || 'Card image uses a configured source or ManeFlow placeholder.')}</p>
+            </div>
+          </div>
+          <div class="grid metrics"><div class="metric"><small>Confidence</small><strong>${safe(data.confidence || 0)}%</strong></div><div class="metric"><small>Liquidity</small><strong>${safe(data.liquidityScore || 0)}%</strong></div><div class="metric"><small>Included comps</small><strong>${safe(quality.includedCount || 0)}</strong></div><div class="metric"><small>Needs review</small><strong>${safe(quality.needsReviewCount || 0)}</strong></div></div>
+          <div class="notice warning" style="margin-top:14px">${data.marketMode === 'production' ? 'Approved source data is connected. Still confirm identity, grade, condition, and source details before transacting.' : 'Demo or mixed data is visible. Do not present this as a verified public market value until approved completed-sale data feeds are connected.'}</div>
+        </section>
+        <section class="panel">
+          <div class="eyebrow">Why this value?</div>
+          <h3>Included completed-sale comps</h3>
+          ${(data.includedComps || []).length ? data.includedComps.slice(0, 10).map(compRow).join('') : '<div class="empty">No public-safe included comps are available for this card yet.</div>'}
+          <p class="subtle" style="margin-top:14px">ManeFlow excludes active listings, demo-only production data, bad dates, bad prices, duplicates, outliers, and source-rights failures from valuation use.</p>
+        </section>`;
+    }).catch((error) => {
+      title.textContent = 'Value unavailable';
+      summary.textContent = error.message;
+      result.innerHTML = '<section class="panel"><div class="empty">This card value is not public or does not have enough public-safe data.</div></section>';
+    });
+  </script>
+</body>
+</html>

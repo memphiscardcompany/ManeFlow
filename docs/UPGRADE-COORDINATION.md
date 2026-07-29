@@ -1,7 +1,8 @@
 # ManeFlow Upgrade Coordination
 
-**Repo:** https://github.com/memphiscardcompany/ManeFlow  
-**Created:** 2026-07-26 by Grok (xAI) under account memphiscardcompany  
+**Repo:** https://github.com/memphiscardcompany/ManeFlow
+
+**Created:** 2026-07-26 by Grok (xAI) under account memphiscardcompany
 **Purpose:** Shared coordination point for Grok + ChatGPT to recover, reconcile, and upgrade ManeFlow.
 
 ## Status

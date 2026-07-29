@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maneflow.local/schemas/dataset-manifest.schema.json",
+  "title": "ManeFlow dataset manifest record",
+  "type": "object",
+  "required": [
+    "asset_id", "relative_path", "sha256", "perceptual_hash", "source",
+    "authorization_state", "allowed_uses", "width", "height", "format",
+    "front_back_state", "raw_graded_state", "label_state"
+  ],
+  "properties": {
+    "asset_id": {"type": "string", "minLength": 16},
+    "relative_path": {"type": "string", "minLength": 1},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "perceptual_hash": {"type": "string"},
+    "source": {"type": "string", "minLength": 1},
+    "authorization_state": {
+      "enum": ["AUTHORIZED_TRAINING", "AUTHORIZED_EVALUATION_ONLY", "AUTHORIZED_RETRIEVAL_ONLY", "QUARANTINED_PENDING_REVIEW", "PROHIBITED"]
+    },
+    "allowed_uses": {"type": "array", "items": {"enum": ["training", "evaluation", "retrieval"]}, "uniqueItems": true},
+    "width": {"type": "integer", "minimum": 0},
+    "height": {"type": "integer", "minimum": 0},
+    "format": {"type": "string"},
+    "card_count": {"type": ["integer", "null"], "minimum": 0},
+    "front_back_state": {"enum": ["front", "back", "paired", "unknown"]},
+    "raw_graded_state": {"enum": ["raw", "graded", "mixed", "unknown"]},
+    "label_state": {"enum": ["unverified", "pseudo_label", "reviewed", "authoritative"]},
+    "duplicate_group": {"type": ["string", "null"]},
+    "split": {"enum": ["training", "validation", "locked_test", null]},
+    "corrupt": {"type": "boolean"},
+    "error": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}

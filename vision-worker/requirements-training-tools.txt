@@ -1,0 +1,4 @@
+# Optional data-collection and training-preparation tools.
+datasets>=3.0,<5
+huggingface_hub>=0.27,<2
+Pillow>=11,<13

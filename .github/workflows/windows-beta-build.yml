@@ -1,0 +1,87 @@
+name: Build ManeFlow Windows Beta
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v2.22.0-beta.*"
+
+jobs:
+  test-and-build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            vision-worker/requirements-desktop.txt
+            vision-worker/requirements-runtime.txt
+
+      - name: Install ManeFlow core dependencies
+        shell: pwsh
+        run: npm install --omit=optional --no-audit --no-fund
+
+      - name: Verify ManeFlow core
+        shell: pwsh
+        run: |
+          npm run check
+          npm run security:scan
+          npm test
+          npm run smoke
+          npm run mobile:check
+          npm run desktop:check
+
+      - name: Install and test vision worker
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r vision-worker/requirements-desktop.txt
+          pytest vision-worker/app/tests -q
+
+      - name: Test integrated desktop services
+        shell: pwsh
+        run: npm run integration:beta
+
+      - name: Prepare embedded Windows Python runtime
+        shell: pwsh
+        run: python scripts/prepare-windows-embedded-runtime.py
+
+      - name: Build Windows installer and portable app
+        working-directory: apps/desktop-electron
+        shell: pwsh
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+        run: |
+          npm install
+          npm run check
+          Remove-Item dist -Recurse -Force -ErrorAction SilentlyContinue
+          npm run package:windows
+          $artifacts = Get-ChildItem dist -File -Filter "*.exe"
+          if (-not $artifacts) { throw "No Windows executable artifacts were produced." }
+
+      - name: Create checksums
+        shell: pwsh
+        run: |
+          $checksum = "apps/desktop-electron/dist/SHA256SUMS.txt"
+          Remove-Item $checksum -ErrorAction SilentlyContinue
+          Get-ChildItem apps/desktop-electron/dist -File -Filter "*.exe" | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Add-Content -Encoding utf8 $checksum
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ManeFlow-Windows-2.22.0-beta.1
+          path: |
+            apps/desktop-electron/dist/*.exe
+            apps/desktop-electron/dist/SHA256SUMS.txt
+          if-no-files-found: error

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maneflow.local/schemas/vision-benchmark-manifest.schema.json",
+  "title": "ManeFlow Vision Benchmark Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "benchmarkName", "generatedAt", "humanLabeledImages", "metrics", "evidence"],
+  "properties": {
+    "schemaVersion": { "const": "maneflow-vision-benchmark-v1.0" },
+    "benchmarkName": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "humanLabeledImages": { "type": "integer", "minimum": 0 },
+    "headToHeadComparisonCompleted": { "type": "boolean", "default": false },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rawCardDetectionRecall",
+        "slabIdentityCertAccuracy",
+        "multiCardSegmentationRecall",
+        "exactIdentityTop1Accuracy",
+        "exactParallelVariantAccuracy",
+        "falseConfidentMatchRate",
+        "duplicateGroupingF1",
+        "edgeP95LatencyMs",
+        "cloudP95LatencyMs"
+      ],
+      "properties": {
+        "rawCardDetectionRecall": { "type": "number", "minimum": 0, "maximum": 1 },
+        "slabIdentityCertAccuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "multiCardSegmentationRecall": { "type": "number", "minimum": 0, "maximum": 1 },
+        "exactIdentityTop1Accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "exactParallelVariantAccuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "falseConfidentMatchRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "duplicateGroupingF1": { "type": "number", "minimum": 0, "maximum": 1 },
+        "edgeP95LatencyMs": { "type": "number", "minimum": 0 },
+        "cloudP95LatencyMs": { "type": "number", "minimum": 0 }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "path", "sha256"],
+        "properties": {
+          "kind": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "path": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "notes": { "type": "string", "maxLength": 2000 }
+        }
+      }
+    }
+  }
+}

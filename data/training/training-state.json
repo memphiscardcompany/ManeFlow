@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-07-26T09:19:27.041602+00:00",
+  "eligible_owner_images": 20,
+  "verified_identity_labels": 0,
+  "provisional_automatic_labels": 0,
+  "min_images_to_prepare": 20,
+  "min_labeled_to_promote": 500,
+  "model_weights_changed": false,
+  "reference_memory_changed": false,
+  "grouping_calibration_changed": true,
+  "adaptive_systems_updated": [
+    "any_order_multi_view_grouping"
+  ],
+  "status": "adaptive_calibration_active_waiting_for_verified_identity_labels",
+  "next_action": "Continue automatic OCR/checklist/cert resolution. Neural model promotion remains blocked until verified labels and a locked benchmark exist.",
+  "corpus_hash": "a6b155a1fd7e7e5457fda54de1f2d3f5f45c36272314ae3c2035910d1f27068f",
+  "grouping_calibration": {
+    "schema_version": "1.0",
+    "updated_at": "2026-07-26T09:19:24.585819+00:00",
+    "status": "trained_owner_corpus_calibration",
+    "owner_images": 20,
+    "positive_pairs": 80,
+    "negative_pairs": 190,
+    "acceptance_threshold": 0.74,
+    "max_dhash_distance": 22,
+    "min_good_matches": 12,
+    "min_homography_inliers": 8,
+    "min_homography_inlier_ratio": 0.42,
+    "metrics": {
+      "true_positive_rate": 0.9875,
+      "false_positive_rate": 0.0,
+      "true_positives": 79,
+      "false_negatives": 1,
+      "false_positives": 0,
+      "true_negatives": 190
+    },
+    "corpus_hash": "7e62fb416dc12e3b8d573fd48851d886727f7078ac1f98921a6869edf47d14c3",
+    "training_type": "self_supervised_synthetic_view_calibration",
+    "identity_labels_used": 0,
+    "user_labels_required": false,
+    "model_weights_changed": false,
+    "system_component_updated": "any_order_multi_view_grouping",
+    "safety_note": "Visual grouping remains conservative; cert, serial, front/back identity, and capture-time evidence take priority."
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "name": "maneflow-desktop",
+  "productName": "ManeFlow",
+  "version": "2.22.0-beta.1",
+  "private": true,
+  "description": "ManeFlow Windows desktop app with secure PSA partner access, eBay OAuth, image scanning, local card vision, pricing, Vault, grading, and inventory workflows.",
+  "main": "src/main.js",
+  "author": "Memphis Card Company",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/config.js",
+    "package:windows": "electron-builder --win nsis portable --x64",
+    "pack:windows": "electron-builder --win dir --x64",
+    "package:windows-store": "electron-builder --win appx --x64",
+    "package:windows:signed": "electron-builder --win nsis portable --x64 -c.forceCodeSigning=true"
+  },
+  "devDependencies": {
+    "electron": "43.2.0",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "com.memphiscardcompany.maneflow.desktop",
+    "productName": "ManeFlow",
+    "artifactName": "ManeFlow-${version}-${target}-${arch}.${ext}",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../..",
+        "to": "core",
+        "filter": [
+          "server.js",
+          "package.json",
+          "src/**/*",
+          "public/**/*",
+          "sample-data/**/*",
+          "!src/data/*.runtime.json"
+        ]
+      },
+      {
+        "from": "../../node_modules",
+        "to": "core/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../../vision-worker",
+        "to": "vision-worker",
+        "filter": [
+          "app/**/*",
+          "desktop_entry.py",
+          "requirements-runtime.txt",
+          "!app/tests/**/*",
+          "!**/__pycache__/**/*",
+          "!**/*.pyc",
+          "!dist/**/*",
+          "!build/**/*"
+        ]
+      },
+      {
+        "from": "../../.runtime-build/windows-python",
+        "to": "runtime/python",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "Memphis Card Company LLC",
+      "legalTrademarks": "ManeFlow; Memphis Card Company"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "ManeFlow",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "menuCategory": "ManeFlow",
+      "displayLanguageSelector": false,
+      "warningsAsErrors": false
+    },
+    "compression": "maximum",
+    "copyright": "Copyright \u00a9 2026 Memphis Card Company LLC",
+    "appx": {
+      "applicationId": "ManeFlow",
+      "displayName": "ManeFlow",
+      "publisherDisplayName": "Memphis Card Company LLC",
+      "backgroundColor": "#080b10",
+      "languages": [
+        "en-US"
+      ],
+      "showNameOnTiles": true
+    }
+  }
+}

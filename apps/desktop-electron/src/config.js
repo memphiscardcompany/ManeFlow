@@ -1,0 +1,4 @@
+module.exports = {
+  DEFAULT_CORE_PORT: 4321,
+  DEFAULT_VISION_PORT: 8741,
+};

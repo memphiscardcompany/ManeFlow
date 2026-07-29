@@ -1,0 +1,68 @@
+name: PostgreSQL and pgvector Integration
+
+on:
+  push:
+    paths:
+      - 'db/**'
+      - 'src/db/**'
+      - 'scripts/migrate-postgres.js'
+      - 'scripts/verify-postgres-schema.js'
+      - 'scripts/test-postgres-rls.js'
+      - '.github/workflows/postgres-integration.yml'
+  pull_request:
+    paths:
+      - 'db/**'
+      - 'src/db/**'
+      - 'scripts/migrate-postgres.js'
+      - 'scripts/verify-postgres-schema.js'
+      - 'scripts/test-postgres-rls.js'
+      - '.github/workflows/postgres-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postgres-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-pgvector:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: maneflow
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: maneflow-ci-admin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d maneflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Apply all migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:maneflow-ci-admin@127.0.0.1:5432/maneflow
+          MANEFLOW_DATABASE_APP_PASSWORD: maneflow-ci-app
+      - name: Verify schema, pgvector, HNSW, RLS, and runtime role
+        run: npm run db:verify
+        env:
+          DATABASE_URL: postgresql://postgres:maneflow-ci-admin@127.0.0.1:5432/maneflow
+      - name: Execute cross-tenant RLS and vector-search test
+        run: npm run db:test:rls
+        env:
+          DATABASE_ADMIN_URL: postgresql://postgres:maneflow-ci-admin@127.0.0.1:5432/maneflow
+          DATABASE_APP_URL: postgresql://maneflow_app:maneflow-ci-app@127.0.0.1:5432/maneflow
