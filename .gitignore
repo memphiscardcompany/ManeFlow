@@ -13,6 +13,12 @@ backups/
 *.before-restore-*
 config/external-release-gates.json
 
+# Host-only staging secrets, backups, health records, and release state.
+deploy/.env.staging
+deploy/.release.staging
+deploy/backups/
+deploy/releases/
+
 # Generated vision/GPU artifacts. Preserve only sanitized status placeholders in Git.
 artifacts/private/
 artifacts/crops/
