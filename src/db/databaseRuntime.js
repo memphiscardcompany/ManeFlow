@@ -14,6 +14,7 @@ export class DatabaseRuntime {
     this.catalogRepository = null;
     this.metaInboundRepository = null;
     this.metaOutboundRepository = null;
+    this.metaDeliveryRepository = null;
     this.initializationError = null;
   }
 
@@ -30,11 +31,13 @@ export class DatabaseRuntime {
         { CatalogRepository },
         { MetaInboundRepository },
         { MetaOutboundRepository },
+        { MetaDeliveryRepository },
       ] = await Promise.all([
         import('./inventoryRepository.js'),
         import('./catalogRepository.js'),
         import('./metaInboundRepository.js'),
         import('./metaOutboundRepository.js'),
+        import('./metaDeliveryRepository.js'),
       ]);
       this.pool = createInventoryDatabasePool({
         connectionString: this.config.databaseUrl,
@@ -53,6 +56,7 @@ export class DatabaseRuntime {
       this.catalogRepository = new CatalogRepository(this.pool);
       this.metaInboundRepository = new MetaInboundRepository(this.pool);
       this.metaOutboundRepository = new MetaOutboundRepository(this.pool);
+      this.metaDeliveryRepository = new MetaDeliveryRepository(this.pool);
       await this.pool.query('SELECT 1 AS ok');
       this.initializationError = null;
       return this;
@@ -154,6 +158,15 @@ export class DatabaseRuntime {
     return this.metaInboundRepository;
   }
 
+  requireMetaDeliveryRepository() {
+    if (!this.metaDeliveryRepository) {
+      throw new DatabaseRuntimeError('PostgreSQL Meta delivery repository is not ready.', {
+        code: 'META_DELIVERY_REPOSITORY_NOT_READY',
+      });
+    }
+    return this.metaDeliveryRepository;
+  }
+
   async close() {
     const pool = this.pool;
     this.pool = null;
@@ -161,6 +174,7 @@ export class DatabaseRuntime {
     this.catalogRepository = null;
     this.metaInboundRepository = null;
     this.metaOutboundRepository = null;
+    this.metaDeliveryRepository = null;
     if (pool) await pool.end();
   }
 }
