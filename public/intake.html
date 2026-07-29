@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07090d">
+  <meta name="description" content="Upload a card-image folder to ManeFlow with resumable, server-owned processing.">
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/intake.css">
+  <title>ManeFlow Folder Intake</title>
+</head>
+<body>
+  <header class="intake-header">
+    <a class="intake-brand" href="/#/home" aria-label="Return to ManeFlow">
+      <span class="brand-mark">M</span>
+      <span><strong>ManeFlow</strong><small>High-volume intake</small></span>
+    </a>
+    <nav aria-label="Folder intake navigation">
+      <a href="/#/scan">Single scan</a>
+      <a href="/#/vault">Vault</a>
+      <a href="/#/account" id="account-link">Account</a>
+    </nav>
+  </header>
+
+  <main class="intake-main">
+    <section class="hero">
+      <p class="eyebrow">Durable vision intake</p>
+      <h1>Drop an entire folder.<br>ManeFlow keeps working.</h1>
+      <p class="hero-copy">Every supported image is uploaded once, processed in bounded server-side batches, and retained as a draft result until you verify it. Closing this page does not erase a stored job.</p>
+      <div class="hero-badges" aria-label="Intake guarantees">
+        <span>Resumable uploads</span>
+        <span>Bounded retries</span>
+        <span>No silent truncation</span>
+        <span>Human verification</span>
+      </div>
+    </section>
+
+    <section id="auth-panel" class="panel auth-panel" hidden>
+      <p class="eyebrow">Account required</p>
+      <h2>Sign in before uploading private card images.</h2>
+      <p>ManeFlow attaches every intake job and draft result to your authenticated account.</p>
+      <a class="button primary" href="/#/account">Sign in or create account</a>
+    </section>
+
+    <section id="intake-workspace" class="workspace" hidden>
+      <section class="panel upload-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Step 1</p>
+            <h2>Select card images</h2>
+          </div>
+          <span id="account-status" class="account-status"></span>
+        </div>
+
+        <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-describedby="drop-help">
+          <div class="drop-icon" aria-hidden="true">＋</div>
+          <h3>Drag and drop a folder here</h3>
+          <p>or choose a folder or individual images</p>
+          <div class="drop-actions">
+            <button id="choose-folder" class="button primary" type="button">Choose folder</button>
+            <button id="choose-files" class="button" type="button">Choose images</button>
+          </div>
+          <small id="drop-help">JPEG, PNG, and WebP. Folder structure is used only to create stable resumable upload identifiers.</small>
+        </div>
+        <input id="folder-input" type="file" accept="image/jpeg,image/png,image/webp" webkitdirectory multiple hidden>
+        <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+
+        <div id="selection-summary" class="selection-summary empty-selection">
+          <strong>No images selected</strong>
+          <span>Choose or drop a folder to build the upload manifest.</span>
+        </div>
+
+        <label class="consent-row">
+          <input id="rights-consent" type="checkbox">
+          <span>I own these images or have permission to upload and process them. Images are excluded from training unless separate recorded authorization permits it.</span>
+        </label>
+
+        <div class="upload-controls">
+          <button id="start-upload" class="button primary large" type="button" disabled>Upload and identify</button>
+          <button id="clear-selection" class="button ghost" type="button" disabled>Clear</button>
+        </div>
+      </section>
+
+      <section id="job-panel" class="panel job-panel" hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Server-owned job</p>
+            <h2 id="job-title">Preparing intake</h2>
+          </div>
+          <span id="job-status" class="status-pill">Preparing</span>
+        </div>
+
+        <div class="progress-track" aria-label="Overall intake progress">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <div class="job-metrics">
+          <div><small>Stored</small><strong id="metric-uploaded">0</strong></div>
+          <div><small>Processed</small><strong id="metric-processed">0</strong></div>
+          <div><small>Draft results</small><strong id="metric-succeeded">0</strong></div>
+          <div><small>Needs attention</small><strong id="metric-failed">0</strong></div>
+        </div>
+
+        <div id="job-message" class="job-message">Building a resumable manifest…</div>
+        <div class="job-actions">
+          <button id="resume-upload" class="button" type="button" hidden>Resume selected folder</button>
+          <button id="refresh-job" class="button" type="button">Refresh</button>
+          <button id="cancel-job" class="button danger" type="button">Cancel remaining work</button>
+          <button id="new-job" class="button ghost" type="button">New intake</button>
+        </div>
+      </section>
+
+      <section id="results-panel" class="panel results-panel" hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Draft review</p>
+            <h2>Processed images</h2>
+          </div>
+          <span id="result-count" class="result-count">0 results</span>
+        </div>
+        <div id="result-list" class="result-list"></div>
+        <button id="load-more-results" class="button" type="button" hidden>Load more</button>
+      </section>
+
+      <section class="panel trust-panel">
+        <p class="eyebrow">How this protects your intake</p>
+        <div class="trust-grid">
+          <article><h3>No retry storm</h3><p>Only temporary failures retry, with exponential backoff and a strict attempt limit.</p></article>
+          <article><h3>No card-count truncation</h3><p>Work is split into bounded internal batches without discarding valid images.</p></article>
+          <article><h3>No forced identities</h3><p>Low evidence remains unresolved and must be confirmed before saving or listing.</p></article>
+          <article><h3>Private by default</h3><p>Jobs are account-scoped and temporary source uploads are deleted after processing by default.</p></article>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/intake.js"></script>
+</body>
+</html>
