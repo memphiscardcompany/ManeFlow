@@ -25,10 +25,21 @@ test('folder benchmark pairs image files to JSON/CSV label cases', () => {
 
 test('recognition reports include field, scene, multi-card focus, and failure summaries', () => {
   const cases = [
-    { imageName: 'binder-page-01.jpg', sceneType: 'binder_page', expectedCards: [
-      { player: 'Shohei Ohtani', year: 2018, brand: 'Topps', set: 'Update Series', cardNumber: 'US1', parallel: 'Base Rookie Debut' },
-      { player: 'Charizard', year: 1999, brand: 'Wizards of the Coast', set: 'Pokemon Base Set', cardNumber: '4/102', parallel: 'Holo Unlimited' },
-    ] },
+    {
+      imageName: 'binder-page-01.jpg',
+      sceneType: 'binder_page',
+      expectedCards: [
+        { player: 'Shohei Ohtani', year: 2018, brand: 'Topps', set: 'Update Series', cardNumber: 'US1', parallel: 'Base Rookie Debut' },
+        { player: 'Charizard', year: 1999, brand: 'Wizards of the Coast', set: 'Pokemon Base Set', cardNumber: '4/102', parallel: 'Holo Unlimited' },
+      ],
+      sceneAnalysis: {
+        scene: { type: 'binder_page', cardCount: 2 },
+        detectedCards: [
+          { facts: { player: 'Shohei Ohtani', year: 2018, brand: 'Topps', set: 'Update Series', cardNumber: 'US1', parallel: 'Base Rookie Debut' } },
+          { facts: { player: 'Charizard', year: 1999, brand: 'Wizards of the Coast', set: 'Pokemon Base Set', cardNumber: '4/102', parallel: 'Holo Unlimited' } },
+        ],
+      },
+    },
     {
       imageName: 'table-unknown.jpg',
       sceneType: 'multi_card_table',

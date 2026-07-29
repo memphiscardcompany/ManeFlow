@@ -117,16 +117,20 @@ try {
     shopA,
     5,
   );
-  if (matchesA.length !== 1 || Number(matchesA[0].inventory_quantity) !== 1) {
-    throw new Error('Tenant-aware vector lookup returned incorrect Shop A inventory aggregation.');
+  if (matchesA.length !== 1 || matchesA[0].shopQuantity !== 1) {
+    throw new Error(
+      `Tenant-aware vector lookup returned incorrect Shop A inventory aggregation: ${JSON.stringify(matchesA)}`,
+    );
   }
   const matchesB = await repository.findVisualMatches(
     Array.from({ length: 1152 }, (_, index) => index === 0 ? 1 : 0),
     shopB,
     5,
   );
-  if (matchesB.length !== 1 || Number(matchesB[0].inventory_quantity) !== 2) {
-    throw new Error('Tenant-aware vector lookup returned incorrect Shop B inventory aggregation.');
+  if (matchesB.length !== 1 || matchesB[0].shopQuantity !== 2) {
+    throw new Error(
+      `Tenant-aware vector lookup returned incorrect Shop B inventory aggregation: ${JSON.stringify(matchesB)}`,
+    );
   }
 
   console.log(JSON.stringify({

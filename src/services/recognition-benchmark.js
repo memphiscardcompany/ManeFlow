@@ -2,7 +2,7 @@ import { recognizeCardScene } from './recognition-engine.js';
 import { parseCsv } from './csv.js';
 import { normalizeText } from './utils.js';
 
-export const RECOGNITION_BENCHMARK_VERSION = 'recognition-benchmark-v1.0';
+export const RECOGNITION_BENCHMARK_VERSION = 'recognition-benchmark-v1.1';
 
 export const RECOGNITION_FIELD_KEYS = Object.freeze(['player', 'year', 'brand', 'set', 'cardNumber', 'parallel', 'productName', 'productType', 'configuration', 'upc', 'grader', 'grade', 'certNumber']);
 
@@ -20,7 +20,7 @@ function maybeJson(value) {
 }
 
 function inferSceneType(row = {}) {
-  const text = normalizeText([row.sceneType, row.layout, row.imageName, row.imagePath, row.imageUrl, row.sourceType].filter(Boolean).join(' '));
+  const text = normalizeText([row.observedSceneType, row.layout, row.imageName, row.imagePath, row.imageUrl, row.sourceType].filter(Boolean).join(' '));
   if (text.includes('binder')) return 'binder_page';
   if (text.includes('table') || text.includes('grid') || text.includes('group') || text.includes('lot')) return 'multi_card_table';
   if (text.includes('mixed') || text.includes('slab')) return 'mixed_raw_slab';
@@ -51,35 +51,6 @@ function compactExpected(expected = {}) {
   return Object.fromEntries(Object.entries(expected).filter(([, value]) => value !== null && value !== undefined && value !== ''));
 }
 
-function expectedText(expected = {}) {
-  return [
-    expected.year,
-    expected.brand,
-    expected.set,
-    expected.player,
-    expected.cardNumber,
-    expected.parallel,
-    expected.productName,
-    expected.productType,
-    expected.configuration,
-    expected.upc,
-    expected.grader,
-    expected.grade,
-    expected.certNumber,
-  ].filter(Boolean).join(' ');
-}
-
-function detectedFromExpected(expectedCards = []) {
-  return expectedCards.map((expected, index) => ({
-    regionId: `expected_${index + 1}`,
-    boundingBox: { x: 0, y: 0, width: 1, height: 1 },
-    facts: compactExpected(expected),
-    fieldConfidence: Object.fromEntries(RECOGNITION_FIELD_KEYS.filter((key) => expected[key]).map((key) => [key, 0.9])),
-    uncertaintyReasons: [],
-    imageQuality: { source: 'benchmark_label_projection' },
-  }));
-}
-
 export function normalizeBenchmarkCase(input = {}, { sourceName = 'Recognition Benchmark Dataset' } = {}) {
   const row = { ...input };
   const metadata = maybeJson(row.metadata || row.text || row.labelJson);
@@ -92,16 +63,25 @@ export function normalizeBenchmarkCase(input = {}, { sourceName = 'Recognition B
   const observed = maybeJson(row.sceneAnalysis || row.observedScene || row.prediction);
   const detectedCards = safeArray(row.detectedCards || observed?.detectedCards);
   const sceneType = clean(row.sceneType || observed?.scene?.type || inferSceneType(row), 80);
+  const manualText = clean(row.manualText || row.ocrText, 2500);
+  const hasObservedScene = Boolean(
+    observed
+    && typeof observed === 'object'
+    && observed.scene
+    && observed.scene.type !== 'unobserved'
+    && observed.scene.processingStrategy !== 'benchmark_unobserved',
+  );
+  const hasObservedInput = hasObservedScene || detectedCards.length > 0 || Boolean(manualText);
   const sceneAnalysis = observed && typeof observed === 'object' && observed.scene
     ? observed
     : {
       scene: {
-        type: sceneType,
-        cardCount: detectedCards.length || expectedCards.length || 1,
-        processingStrategy: detectedCards.length ? 'benchmark_observed_vision' : 'benchmark_catalog_from_labels',
+        type: detectedCards.length ? inferSceneType(row) : 'unobserved',
+        cardCount: detectedCards.length,
+        processingStrategy: detectedCards.length ? 'benchmark_observed_vision' : 'benchmark_unobserved',
         difficulty: row.difficulty || 'unknown',
       },
-      detectedCards: detectedCards.length ? detectedCards : detectedFromExpected(expectedCards),
+      detectedCards,
     };
   return {
     id: clean(row.id || row.imageId || row.fileName || row.imageName || `benchmark_${Math.random().toString(16).slice(2)}`, 160),
@@ -110,8 +90,10 @@ export function normalizeBenchmarkCase(input = {}, { sourceName = 'Recognition B
     imageRef: clean(row.imageRef || row.imageUrl || row.imagePath || row.fileName || row.imageName, 1000),
     sceneType,
     expectedCards,
+    scorable: hasObservedInput,
+    unscorableReason: hasObservedInput ? null : 'No observed scene, detected regions, OCR, or manual transcription was supplied.',
     body: {
-      manualText: clean(row.manualText || row.ocrText || expectedCards.map(expectedText).join(' | '), 2500),
+      manualText,
       imageName: clean(row.imageName || row.fileName || row.imagePath || row.imageUrl, 300),
       frontDataUrl: row.frontDataUrl || row.dataUrl || '',
       backDataUrl: row.backDataUrl || '',
@@ -169,12 +151,12 @@ function cardMatchesExpected(expected = {}, card = {}) {
   return matched / checks.length >= 0.72 && matched >= Math.min(3, checks.length);
 }
 
-function fieldScore(expected = {}, facts = {}, best = {}) {
+function fieldScore(expected = {}, facts = {}) {
   let total = 0;
   let correct = 0;
   const details = {};
   for (const key of RECOGNITION_FIELD_KEYS) {
-    const actual = facts[key] ?? (key === 'player' ? facts.subject : undefined) ?? best[key] ?? (key === 'grader' ? best.grade?.company : undefined) ?? (key === 'grade' ? best.grade?.grade : undefined);
+    const actual = facts[key] ?? (key === 'player' ? facts.subject : undefined);
     const value = fieldEqual(expected[key], actual);
     if (value === null) continue;
     total += 1;
@@ -186,6 +168,7 @@ function fieldScore(expected = {}, facts = {}, best = {}) {
 
 function recommendation(metrics = {}) {
   const notes = [];
+  if (!metrics.scorableCases) return ['Provide observed model output, detected regions, OCR, or manual transcription. Ground-truth labels alone are intentionally unscorable.'];
   if (!metrics.totalExpectedCards) return ['Add expected card labels before using this set for top-1/top-3 or field-level accuracy.'];
   if (metrics.top1Accuracy < 80) notes.push('Improve catalog ranking and vision prompt before broad consumer launch.');
   if (metrics.top3Accuracy - metrics.top1Accuracy > 12) notes.push('Add stronger confirmation UI because the correct card is often present but not first.');
@@ -241,8 +224,9 @@ function incrementAggregate(aggregate, { expectedCards, sceneCorrect, top1, top3
 }
 
 function failureSummary(rows = [], fieldBreakdown = {}) {
-  const sceneMisses = rows.filter((row) => !row.sceneCorrect);
-  const perCard = rows.flatMap((row) => row.perCard.map((card) => ({ ...card, caseId: row.caseId, sceneExpected: row.sceneExpected, imageRef: row.imageRef })));
+  const scorableRows = rows.filter((row) => row.scorable !== false);
+  const sceneMisses = scorableRows.filter((row) => !row.sceneCorrect);
+  const perCard = scorableRows.flatMap((row) => row.perCard.map((card) => ({ ...card, caseId: row.caseId, sceneExpected: row.sceneExpected, imageRef: row.imageRef })));
   const missedTop1 = perCard.filter((card) => !card.top1);
   const correctInTop3 = perCard.filter((card) => !card.top1 && card.top3);
   const falseConfident = perCard.filter((card) => !card.top1 && Number(card.bestConfidence || 0) >= 0.86 && !card.needsConfirmation);
@@ -251,7 +235,7 @@ function failureSummary(rows = [], fieldBreakdown = {}) {
     .filter(([, value]) => value.total > 0 && value.accuracy < 85)
     .sort((a, b) => a[1].accuracy - b[1].accuracy)
     .map(([field, value]) => ({ field, ...value }));
-  const hardScenes = rows.filter((row) => ['binder_page', 'multi_card_table', 'mixed_raw_slab'].includes(row.sceneExpected) || row.expectedCount > 1);
+  const hardScenes = scorableRows.filter((row) => ['binder_page', 'multi_card_table', 'mixed_raw_slab'].includes(row.sceneExpected) || row.expectedCount > 1);
   const hardSceneCards = hardScenes.flatMap((row) => row.perCard);
   return {
     sceneMisses: sceneMisses.length,
@@ -288,8 +272,27 @@ export function runRecognitionBenchmark(cases = [], {
   let sceneCorrect = 0;
   let falseConfident = 0;
   let needsConfirmation = 0;
+  let scorableCases = 0;
 
   for (const testCase of normalizedCases) {
+    if (!testCase.scorable) {
+      rows.push({
+        caseId: testCase.id,
+        sourceName: testCase.sourceName,
+        imageRef: testCase.imageRef,
+        expectedCount: testCase.expectedCards.length,
+        detectedCount: 0,
+        sceneExpected: testCase.sceneType,
+        sceneActual: null,
+        sceneCorrect: false,
+        scorable: false,
+        unscorableReason: testCase.unscorableReason,
+        averageScanConfidence: null,
+        perCard: [],
+      });
+      continue;
+    }
+    scorableCases += 1;
     const recognition = recognizeCardScene({
       cards,
       body: testCase.body,
@@ -313,7 +316,7 @@ export function runRecognitionBenchmark(cases = [], {
       const best = matches[0] || null;
       const inTop1 = cardMatchesExpected(expected, best);
       const inTop3 = matches.slice(0, 3).some((card) => cardMatchesExpected(expected, card));
-      const fields = fieldScore(expected, item.facts || {}, best || {});
+      const fields = fieldScore(expected, item.facts || {});
       fieldTotals.correct += fields.correct;
       fieldTotals.total += fields.total;
       caseFieldCorrect += fields.correct;
@@ -350,6 +353,8 @@ export function runRecognitionBenchmark(cases = [], {
       sceneActual: recognition.scene.type,
       sceneCorrect: isSceneCorrect,
       averageScanConfidence: recognition.summary.averageScanConfidence,
+      scorable: true,
+      unscorableReason: null,
       perCard,
     });
     const sceneKey = testCase.sceneType || 'unknown';
@@ -372,8 +377,10 @@ export function runRecognitionBenchmark(cases = [], {
 
   const metrics = {
     totalCases: normalizedCases.length,
+    scorableCases,
+    unscorableCases: normalizedCases.length - scorableCases,
     totalExpectedCards: expectedTotal,
-    sceneAccuracy: pct(sceneCorrect, normalizedCases.length),
+    sceneAccuracy: pct(sceneCorrect, scorableCases),
     top1Accuracy: pct(top1, expectedTotal),
     top3Accuracy: pct(top3, expectedTotal),
     fieldAccuracy: pct(fieldTotals.correct, fieldTotals.total),

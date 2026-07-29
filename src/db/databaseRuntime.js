@@ -12,6 +12,7 @@ export class DatabaseRuntime {
     this.pool = null;
     this.inventoryRepository = null;
     this.catalogRepository = null;
+    this.metaOutboundRepository = null;
     this.initializationError = null;
   }
 
@@ -23,9 +24,10 @@ export class DatabaseRuntime {
     if (!this.configured) return this;
     if (this.pool && this.inventoryRepository) return this;
     try {
-      const [{ createInventoryDatabasePool, InventoryRepository }, { CatalogRepository }] = await Promise.all([
+      const [{ createInventoryDatabasePool, InventoryRepository }, { CatalogRepository }, { MetaOutboundRepository }] = await Promise.all([
         import('./inventoryRepository.js'),
         import('./catalogRepository.js'),
+        import('./metaOutboundRepository.js'),
       ]);
       this.pool = createInventoryDatabasePool({
         connectionString: this.config.databaseUrl,
@@ -42,6 +44,7 @@ export class DatabaseRuntime {
         statementTimeoutMs: this.config.databaseStatementTimeoutMs,
       });
       this.catalogRepository = new CatalogRepository(this.pool);
+      this.metaOutboundRepository = new MetaOutboundRepository(this.pool);
       await this.pool.query('SELECT 1 AS ok');
       this.initializationError = null;
       return this;
@@ -125,11 +128,21 @@ export class DatabaseRuntime {
     return this.inventoryRepository.findVisualMatches(embedding, shopId, limit);
   }
 
+  requireMetaOutboundRepository() {
+    if (!this.metaOutboundRepository) {
+      throw new DatabaseRuntimeError('PostgreSQL Meta outbox repository is not ready.', {
+        code: 'META_OUTBOUND_REPOSITORY_NOT_READY',
+      });
+    }
+    return this.metaOutboundRepository;
+  }
+
   async close() {
     const pool = this.pool;
     this.pool = null;
     this.inventoryRepository = null;
     this.catalogRepository = null;
+    this.metaOutboundRepository = null;
     if (pool) await pool.end();
   }
 }

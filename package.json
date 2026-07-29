@@ -32,7 +32,7 @@
     "db:verify": "node scripts/verify-postgres-schema.js",
     "package:windows-beta": "node scripts/package-windows-beta.js",
     "package:checksums": "node scripts/write-release-checksums.js",
-    "package:beta": "npm run package && npm run package:windows-beta && npm run package:checksums",
+    "package:beta": "npm run package && npm run verify:release && npm run package:windows-beta && npm run package:checksums",
     "vision:dataset:seed": "cd vision-worker && python tools/build_roboflow_seed_dataset.py",
     "vision:segmentation:evaluate": "cd vision-worker && python tools/evaluate_segmentation_model.py",
     "vision:encoder:export": "cd vision-worker && python tools/export_siglip2_encoder.py",

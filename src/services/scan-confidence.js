@@ -29,30 +29,30 @@ export function assessImageQuality({ frontDataUrl = '', backDataUrl = '', certDa
   return { imageQualityScore: Math.round(clamp(score, 0, 100)), warnings, frontStatus: frontBytes ? 'present' : 'missing', backStatus: backBytes ? 'present' : 'missing', certStatus: certDataUrl ? 'present' : 'optional_missing' };
 }
 
-export function buildFieldConfidence({ vision = null, manualText = '', ocrText = '', bestMatch = null, gradedCert = null } = {}) {
+export function buildFieldConfidence({ vision = null, manualText = '', ocrText = '', gradedCert = null } = {}) {
   const text = normalizeText(`${manualText} ${ocrText} ${vision?.visibleText || ''}`);
   const warnings = [];
   const facts = vision?.facts || vision || {};
   const fieldConfidence = {
-    player: has(facts.player || bestMatch?.player) ? 0.86 : text ? 0.45 : 0.1,
-    subject: has(facts.subject || facts.player || bestMatch?.player) ? 0.84 : text ? 0.42 : 0.1,
-    team: has(facts.team || bestMatch?.team) ? 0.72 : 0.25,
-    year: has(facts.year || bestMatch?.year) ? 0.82 : /\b(19|20)\d{2}\b/.test(text) ? 0.62 : 0.15,
-    brand: has(facts.brand || bestMatch?.brand) ? 0.78 : 0.22,
-    set: has(facts.set || bestMatch?.set || bestMatch?.brand) ? 0.74 : 0.25,
-    cardNumber: has(facts.cardNumber || bestMatch?.cardNumber) ? 0.8 : /#?[a-z]{0,3}\d{1,4}\b/i.test(`${manualText} ${ocrText}`) ? 0.56 : 0.12,
-    parallel: has(facts.parallel || bestMatch?.parallel) ? 0.68 : 0.28,
-    productName: has(facts.productName || bestMatch?.productName) ? 0.82 : text ? 0.42 : 0.12,
-    productType: has(facts.productType || facts.sealedType || bestMatch?.productType) ? 0.84 : /\b(pack|box|sealed|booster|blaster|hobby|retail|tin|etb|elite trainer)\b/i.test(`${manualText} ${ocrText}`) ? 0.68 : 0.18,
-    configuration: has(facts.configuration || bestMatch?.configuration) ? 0.78 : /\b(\d+\s*(pack|card|box|ct|count)|hobby|retail|blaster|mega|booster|elite trainer)\b/i.test(`${manualText} ${ocrText}`) ? 0.58 : 0.18,
-    upc: has(facts.upc || facts.barcode || bestMatch?.upc) ? 0.9 : /\b\d{10,14}\b/.test(`${manualText} ${ocrText}`) ? 0.64 : 0.12,
-    variation: has(facts.variation || facts.parallel || bestMatch?.parallel) ? 0.66 : 0.26,
+    player: has(facts.player) ? 0.86 : text ? 0.45 : 0.1,
+    subject: has(facts.subject || facts.player) ? 0.84 : text ? 0.42 : 0.1,
+    team: has(facts.team) ? 0.72 : 0.25,
+    year: has(facts.year) ? 0.82 : /\b(19|20)\d{2}\b/.test(text) ? 0.62 : 0.15,
+    brand: has(facts.brand) ? 0.78 : 0.22,
+    set: has(facts.set) ? 0.74 : 0.25,
+    cardNumber: has(facts.cardNumber) ? 0.8 : /#?[a-z]{0,3}\d{1,4}\b/i.test(`${manualText} ${ocrText}`) ? 0.56 : 0.12,
+    parallel: has(facts.parallel) ? 0.68 : 0.28,
+    productName: has(facts.productName) ? 0.82 : text ? 0.42 : 0.12,
+    productType: has(facts.productType || facts.sealedType) ? 0.84 : /\b(pack|box|sealed|booster|blaster|hobby|retail|tin|etb|elite trainer)\b/i.test(`${manualText} ${ocrText}`) ? 0.68 : 0.18,
+    configuration: has(facts.configuration) ? 0.78 : /\b(\d+\s*(pack|card|box|ct|count)|hobby|retail|blaster|mega|booster|elite trainer)\b/i.test(`${manualText} ${ocrText}`) ? 0.58 : 0.18,
+    upc: has(facts.upc || facts.barcode) ? 0.9 : /\b\d{10,14}\b/.test(`${manualText} ${ocrText}`) ? 0.64 : 0.12,
+    variation: has(facts.variation || facts.parallel) ? 0.66 : 0.26,
     serialNumber: has(facts.serialNumber) ? 0.88 : /\d+\s*\/\s*\d+/.test(`${manualText} ${ocrText}`) ? 0.7 : 0.2,
-    rookie: facts.rookie === true || facts.rookieFlag === true || /\b(rc|rookie)\b/i.test(`${manualText} ${ocrText}`) ? 0.82 : has(bestMatch?.aliases?.join?.(' ')) && /rookie| rc\b/i.test(bestMatch.aliases.join(' ')) ? 0.68 : 0.35,
+    rookie: facts.rookie === true || facts.rookieFlag === true || /\b(rc|rookie)\b/i.test(`${manualText} ${ocrText}`) ? 0.82 : 0.35,
     autograph: facts.autograph === true || facts.autographFlag === true || /\b(auto|autograph|signed)\b/i.test(`${manualText} ${ocrText}`) ? 0.82 : 0.35,
     relic: facts.relic === true || facts.patch === true || facts.memorabilia === true || /\b(relic|patch|jersey|memorabilia)\b/i.test(`${manualText} ${ocrText}`) ? 0.8 : 0.34,
-    gradeCompany: has(facts.gradeCompany || facts.grader || bestMatch?.grade?.company) ? 0.9 : /\b(psa|bgs|sgc|cgc)\b/i.test(text) ? 0.75 : 0.2,
-    grade: has(facts.grade || bestMatch?.grade?.grade) ? 0.9 : /\b(10|9\.5|9|8\.5|8)\b/.test(text) ? 0.62 : 0.2,
+    gradeCompany: has(facts.gradeCompany || facts.grader) ? 0.9 : /\b(psa|bgs|sgc|cgc)\b/i.test(text) ? 0.75 : 0.2,
+    grade: has(facts.grade) ? 0.9 : /\b(10|9\.5|9|8\.5|8)\b/.test(text) ? 0.62 : 0.2,
     certNumber: has(facts.certNumber) ? 0.88 : /\b\d{7,10}\b/.test(text) ? 0.52 : 0.15,
   };
   if (gradedCert?.certNumber) fieldConfidence.certNumber = Math.max(fieldConfidence.certNumber, gradedCert.barcodePayload || gradedCert.qrPayload ? 0.96 : 0.82);
@@ -76,7 +76,21 @@ export function buildFieldConfidence({ vision = null, manualText = '', ocrText =
   const identityConfidence = sealedSignal >= 0.65
     ? Math.round(clamp((fieldConfidence.productName * 0.22 + fieldConfidence.productType * 0.2 + fieldConfidence.brand * 0.14 + fieldConfidence.set * 0.16 + fieldConfidence.year * 0.1 + fieldConfidence.configuration * 0.12 + fieldConfidence.upc * 0.06) * 100, 0, 100))
     : Math.round(clamp((fieldConfidence.player * 0.22 + fieldConfidence.year * 0.16 + fieldConfidence.set * 0.16 + fieldConfidence.cardNumber * 0.2 + fieldConfidence.parallel * 0.14 + fieldConfidence.grade * 0.12) * 100, 0, 100));
-  return { fieldConfidence, identityConfidence, warnings };
+  const observedFactCount = [
+    'player', 'subject', 'year', 'brand', 'set', 'cardNumber', 'parallel', 'variation',
+    'productName', 'productType', 'sealedType', 'configuration', 'upc', 'barcode',
+    'gradeCompany', 'grader', 'grade', 'certNumber',
+  ].filter((key) => has(facts[key])).length;
+  const observedText = has(manualText) || has(ocrText) || has(vision?.visibleText);
+  const observedCert = Boolean(gradedCert && [
+    gradedCert.certNumber,
+    gradedCert.grader,
+    gradedCert.grade,
+    gradedCert.cardNumber,
+    gradedCert.parallel,
+  ].some(has));
+  const hasObservedIdentityEvidence = observedFactCount > 0 || observedText || observedCert;
+  return { fieldConfidence, identityConfidence, warnings, observedFactCount, hasObservedIdentityEvidence };
 }
 
 function cardLabel(card = {}) {
@@ -84,25 +98,24 @@ function cardLabel(card = {}) {
     .filter(Boolean).join(' ');
 }
 
-function evidenceForMatch(bestMatch = {}, fields = {}, vision = null) {
-  bestMatch = bestMatch || {};
+function evidenceForMatch(fields = {}, vision = null) {
   const facts = vision?.facts || vision || {};
   const reasons = [];
   const uncertain = [];
   const add = (field, label, value) => {
-    if (Number(fields[field] || 0) >= 0.7) reasons.push(`${label}: ${value || 'matched'}`);
+    if (Number(fields[field] || 0) >= 0.7 && has(value)) reasons.push(`${label}: ${value}`);
     else uncertain.push(label);
   };
-  add('player', 'subject', bestMatch.player || facts.player || facts.subject);
-  add('year', 'year', bestMatch.year || facts.year);
-  add('brand', 'brand', bestMatch.brand || facts.brand);
-  add('set', 'set', bestMatch.set || facts.set);
-  add('cardNumber', 'card number', bestMatch.cardNumber || facts.cardNumber);
-  add('parallel', 'parallel', bestMatch.parallel || facts.parallel || facts.variation);
-  add('productName', 'product', bestMatch.productName || facts.productName);
-  add('productType', 'sealed type', bestMatch.productType || facts.productType || facts.sealedType);
-  add('configuration', 'configuration', bestMatch.configuration || facts.configuration);
-  if (Number(fields.grade || 0) >= 0.7) reasons.push(`grade: ${bestMatch.grade?.company || facts.grader || facts.gradeCompany || ''} ${bestMatch.grade?.grade || facts.grade || ''}`.trim());
+  add('player', 'subject', facts.player || facts.subject);
+  add('year', 'year', facts.year);
+  add('brand', 'brand', facts.brand);
+  add('set', 'set', facts.set);
+  add('cardNumber', 'card number', facts.cardNumber);
+  add('parallel', 'parallel', facts.parallel || facts.variation);
+  add('productName', 'product', facts.productName);
+  add('productType', 'sealed type', facts.productType || facts.sealedType);
+  add('configuration', 'configuration', facts.configuration);
+  if (Number(fields.grade || 0) >= 0.7 && has(facts.grade)) reasons.push(`grade: ${facts.grader || facts.gradeCompany || ''} ${facts.grade}`.trim());
   else uncertain.push('grade');
   if (Number(fields.certNumber || 0) >= 0.75) reasons.push(`cert: ${facts.certNumber || 'parsed from slab evidence'}`);
   return { reasons: [...new Set(reasons)].slice(0, 8), uncertain: [...new Set(uncertain)].slice(0, 8) };
@@ -126,7 +139,7 @@ export function evaluateScanConfidence({ body = {}, vision = null, result = null
   const bestMatch = matches[0] || null;
   const imageQuality = assessImageQuality({ ...body, vision });
   const gradedCert = body.gradedCert || result?.gradedCert || null;
-  const fields = buildFieldConfidence({ vision, manualText: body.manualText, ocrText: body.ocrText, bestMatch, gradedCert });
+  const fields = buildFieldConfidence({ vision, manualText: body.manualText, ocrText: body.ocrText, gradedCert });
   const warnings = [...imageQuality.warnings, ...fields.warnings];
   const candidateCount = matches.length;
   const candidatePenalty = candidateCount > 3 ? 10 : candidateCount > 1 ? 5 : 0;
@@ -134,12 +147,13 @@ export function evaluateScanConfidence({ body = {}, vision = null, result = null
   const certPenalty = gradedCert?.verificationStatus === 'mismatch_detected' ? 28 : 0;
   const weakCertPenalty = gradedCert?.slabbed && ['insufficient', 'needs_review'].includes(gradedCert.extractionTier) ? 12 : 0;
   const conflictPenalty = (gradedCert?.certEvidence?.conflicts || []).length ? 22 : 0;
-  const score = Math.round(clamp(fields.identityConfidence * 0.72 + imageQuality.imageQualityScore * 0.28 - candidatePenalty + certBonus - certPenalty - weakCertPenalty - conflictPenalty, 0, 100));
+  const computedScore = Math.round(clamp(fields.identityConfidence * 0.72 + imageQuality.imageQualityScore * 0.28 - candidatePenalty + certBonus - certPenalty - weakCertPenalty - conflictPenalty, 0, 100));
+  const score = fields.hasObservedIdentityEvidence ? computedScore : Math.min(computedScore, 35);
   const needsBackImage = imageQuality.backStatus === 'missing' && (fields.fieldConfidence.parallel < 0.6 || fields.fieldConfidence.cardNumber < 0.7);
   const highValueLowConfidence = Number(bestMatch?.market?.value || 0) >= 250 && score < 90;
   if (highValueLowConfidence) warnings.push('High-value card with less than elite scan confidence; require manual confirmation before pricing, listing, or buying.');
-  const needsManualConfirmation = score < 78 || highValueLowConfidence || needsBackImage || fields.fieldConfidence.parallel < 0.5 || gradedCert?.verificationStatus === 'mismatch_detected' || weakCertPenalty > 0 || conflictPenalty > 0;
-  const matchEvidence = evidenceForMatch(bestMatch, fields.fieldConfidence, vision);
+  const needsManualConfirmation = !fields.hasObservedIdentityEvidence || score < 78 || highValueLowConfidence || needsBackImage || fields.fieldConfidence.parallel < 0.5 || gradedCert?.verificationStatus === 'mismatch_detected' || weakCertPenalty > 0 || conflictPenalty > 0;
+  const matchEvidence = evidenceForMatch(fields.fieldConfidence, vision);
   const topCandidates = matches.slice(0, 3).map((card, index) => ({
     id: card.id,
     title: cardLabel(card),
@@ -148,6 +162,7 @@ export function evaluateScanConfidence({ body = {}, vision = null, result = null
     image: card.image || null,
   }));
   const manualReasons = [
+    !fields.hasObservedIdentityEvidence ? 'no observed identity evidence' : '',
     score < 78 ? 'scan confidence below release threshold' : '',
     highValueLowConfidence ? 'high-value card requires elite confidence' : '',
     needsBackImage ? 'back image recommended for exact identity' : '',
@@ -174,6 +189,10 @@ export function evaluateScanConfidence({ body = {}, vision = null, result = null
     recommendedNextStep: needsManualConfirmation ? 'Confirm card number, parallel, grade, and cert before adding to Vault or using value.' : 'High confidence match; still confirm condition before transacting.',
     warnings,
     candidateCount,
+    observedIdentityEvidence: {
+      present: fields.hasObservedIdentityEvidence,
+      observedFactCount: fields.observedFactCount,
+    },
     bestMatchId: bestMatch?.id || result?.best?.id || null,
     gradedCert: gradedCert ? {
       slabbed: gradedCert.slabbed,

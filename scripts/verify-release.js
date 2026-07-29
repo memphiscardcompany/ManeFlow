@@ -25,8 +25,20 @@ try {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const absolute = path.join(directory, entry.name);
       const lower = entry.name.toLowerCase();
-      if (['node_modules', '.runtime', '.runtime-build', 'backups', 'coverage', 'screenshots', '.pytest_cache', '__pycache__', '.venv', '.venv-windows', '.venv-beta', 'dist', 'build', 'imported-contributions'].includes(lower)) forbidden.push(absolute);
-      if (lower === '.env' || lower.endsWith('.pem') || lower.endsWith('.key') || lower.endsWith('.sqlite3') || lower.endsWith('.pyc')) forbidden.push(absolute);
+      if (entry.isSymbolicLink()) forbidden.push(absolute);
+      if (['.git', '.hg', '.svn', 'node_modules', '.runtime', '.runtime-build', 'backups', 'coverage', 'screenshots', '.pytest_cache', '__pycache__', '.venv', '.venv-windows', '.venv-beta', 'dist', 'build', 'imported-contributions'].includes(lower)) forbidden.push(absolute);
+      if (
+        lower === '.env'
+        || (lower.startsWith('.env.') && !lower.endsWith('.example'))
+        || lower.endsWith('.pem')
+        || lower.endsWith('.key')
+        || lower.endsWith('.p12')
+        || lower.endsWith('.pfx')
+        || lower.endsWith('.sqlite3')
+        || lower.endsWith('.sqlite')
+        || lower.endsWith('.db')
+        || lower.endsWith('.pyc')
+      ) forbidden.push(absolute);
       if (entry.isDirectory()) walk(absolute);
       else files.push(absolute);
     }
@@ -49,9 +61,60 @@ try {
   const pkg = JSON.parse(fs.readFileSync(rootPackage, 'utf8'));
   if (pkg.version !== release.version) throw new Error(`Unexpected release version: ${pkg.version}`);
 
+  const sourceCommit = runGit(['rev-parse', '--verify', 'HEAD']).trim();
+  const sourcePackage = JSON.parse(runGit(['show', `${sourceCommit}:package.json`]));
+  if (pkg.version !== sourcePackage.version) {
+    throw new Error(`Archive version ${pkg.version} does not match commit ${sourceCommit}.`);
+  }
+
+  const expectedFiles = runGit(['ls-tree', '-r', '--name-only', '-z', sourceCommit])
+    .split('\0')
+    .filter(Boolean)
+    .sort();
+  const archivedFiles = files
+    .map((file) => path.relative(path.join(temp, roots[0].name), file).replaceAll('\\', '/'))
+    .sort();
+  if (JSON.stringify(archivedFiles) !== JSON.stringify(expectedFiles)) {
+    const expected = new Set(expectedFiles);
+    const archived = new Set(archivedFiles);
+    const missing = expectedFiles.filter((file) => !archived.has(file));
+    const unexpected = archivedFiles.filter((file) => !expected.has(file));
+    throw new Error(
+      `Release inventory does not match commit ${sourceCommit}. `
+      + `Missing: ${missing.join(', ') || 'none'}. `
+      + `Unexpected: ${unexpected.join(', ') || 'none'}.`,
+    );
+  }
+
   const digest = createHash('sha256').update(fs.readFileSync(zipPath)).digest('hex');
+  const evidencePath = `${zipPath}.evidence.json`;
+  const evidence = {
+    schemaVersion: 1,
+    archive: path.basename(zipPath),
+    archiveBytes: fs.statSync(zipPath).size,
+    fileCount: archivedFiles.length,
+    sha256: digest,
+    sourceCommit,
+    version: pkg.version,
+  };
+  fs.writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
   console.log(`Release ZIP verified: ${path.basename(zipPath)}`);
   console.log(`SHA-256 ${digest}`);
+  console.log(`Evidence ${evidencePath}`);
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
+}
+
+function runGit(args) {
+  const result = spawnSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `Git command failed (${args.join(' ')}): ${result.stderr || result.stdout || 'unknown error'}`,
+    );
+  }
+  return result.stdout;
 }

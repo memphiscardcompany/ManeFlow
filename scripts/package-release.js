@@ -4,41 +4,46 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const sourceCommit = git(['rev-parse', '--verify', 'HEAD']).stdout.trim();
+const sourceRef = git(['symbolic-ref', '--quiet', '--short', 'HEAD'], {
+  allowedStatuses: [0, 1],
+}).stdout.trim() || 'DETACHED_HEAD';
+const pkg = JSON.parse(git(['show', `${sourceCommit}:package.json`]).stdout);
 const releaseFolder = `ManeFlow-v${pkg.version}-Unified-Source`;
-const stagingRoot = path.resolve(root, '..', '.release-staging');
-const staged = path.join(stagingRoot, releaseFolder);
 const output = path.resolve(root, '..', `${releaseFolder}.zip`);
 
-for (const target of [output, stagingRoot]) {
-  if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
-}
+if (fs.existsSync(output)) fs.rmSync(output, { force: true });
 
-const excludedNames = new Set([
-  '.runtime', '.runtime-build', 'node_modules', '.DS_Store', '.env', 'backups', 'coverage',
-  'screenshots', '.release-staging', '.pytest_cache', '__pycache__', '.venv', '.venv-windows',
-  '.venv-beta', 'dist', 'build', 'imported-contributions', 'SHA256SUMS.txt',
+// A release is a snapshot of one reviewed commit, never a recursive copy of
+// the working directory. `git archive` excludes .git and every untracked file
+// by construction, preventing credentials, local databases, and build debris
+// from silently entering a source release.
+git([
+  'archive',
+  '--format=zip',
+  `--prefix=${releaseFolder}/`,
+  `--output=${output}`,
+  sourceCommit,
 ]);
-const excludedSuffixes = ['.sqlite3', '.sqlite', '.db', '.pyc', '.pyo', '.log'];
 
-fs.mkdirSync(stagingRoot, { recursive: true });
-fs.cpSync(root, staged, {
-  recursive: true,
-  filter: (source) => {
-    const name = path.basename(source);
-    if (name.includes('.before-restore-')) return false;
-    if (excludedNames.has(name)) return false;
-    return !excludedSuffixes.some((suffix) => name.toLowerCase().endsWith(suffix));
-  },
-});
+console.log(JSON.stringify({
+  archive: output,
+  sourceCommit,
+  sourceRef,
+  version: pkg.version,
+}, null, 2));
 
-const result = process.platform === 'win32'
-  ? spawnSync('powershell', [
-      '-NoProfile', '-Command',
-      `$ErrorActionPreference='Stop'; Compress-Archive -Path '${releaseFolder}' -DestinationPath '${output}' -Force`,
-    ], { cwd: stagingRoot, stdio: 'inherit' })
-  : spawnSync('zip', ['-qr', output, releaseFolder], { cwd: stagingRoot, stdio: 'inherit' });
-
-if (result.status !== 0) throw new Error('Could not create ManeFlow source ZIP.');
-fs.rmSync(stagingRoot, { recursive: true, force: true });
-console.log(output);
+function git(args, options = {}) {
+  const result = spawnSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  const allowedStatuses = options.allowedStatuses ?? [0];
+  if (!allowedStatuses.includes(result.status)) {
+    throw new Error(
+      `Git command failed (${args.join(' ')}): ${result.stderr || result.stdout || 'unknown error'}`,
+    );
+  }
+  return result;
+}

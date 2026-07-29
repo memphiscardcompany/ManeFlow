@@ -34,6 +34,7 @@ const requiredRelations = [
   'manebrain_messages',
   'manebrain_reply_drafts',
   'manebrain_outbound_jobs',
+  'manebrain_outbound_attempts',
   'manebrain_audit_log',
 ];
 
@@ -66,6 +67,7 @@ try {
     'manebrain_messages',
     'manebrain_reply_drafts',
     'manebrain_outbound_jobs',
+    'manebrain_outbound_attempts',
     'manebrain_audit_log',
   ]) {
     if (!found.get(table)?.rowsecurity) throw new Error(`RLS is not enabled on ${table}.`);

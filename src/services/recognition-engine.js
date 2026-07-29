@@ -336,13 +336,14 @@ export function recognizeCardScene({
       gradedCert: regionCert,
     });
     const learnedMatches = applyCorrectionLearning(result.matches, cards, region, corrections, enrichCard);
-    const exact = Boolean(learnedMatches[0] && Number(learnedMatches[0].confidence || 0) >= 0.9 && topGap(learnedMatches) >= 0.08);
+    const candidateExact = Boolean(learnedMatches[0] && Number(learnedMatches[0].confidence || 0) >= 0.9 && topGap(learnedMatches) >= 0.08);
     const scanConfidence = evaluateScanConfidence({
       body: { ...body, gradedCert: regionCert },
       vision: regionVision,
-      result: { ...result, exact, matches: learnedMatches, gradedCert: regionCert },
+      result: { ...result, exact: candidateExact, matches: learnedMatches, gradedCert: regionCert },
       matches: learnedMatches,
     });
+    const exact = Boolean(result.exact && candidateExact && !scanConfidence.needsManualConfirmation);
     const path = chooseRecognitionPath({ scene, region, matches: learnedMatches, confidence: scanConfidence });
     return {
       regionId: region.regionId || `region_${index + 1}`,

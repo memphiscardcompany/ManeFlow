@@ -43,3 +43,26 @@ test('high-value cards require elite scan confidence before action', () => {
   assert.ok(confidence.warnings.some((warning) => /High-value card/i.test(warning)));
   assert.ok(confidence.manualConfirmationReasons.some((reason) => /high-value/i.test(reason)));
 });
+
+test('catalog candidates cannot create observed identity confidence', () => {
+  const confidence = evaluateScanConfidence({
+    body: { frontDataUrl: image() },
+    vision: { facts: {}, imageQuality: { blur: 'none', glare: 'none', crop: 'full_card', lighting: 'good', angle: 'flat' } },
+    matches: [{
+      id: 'candidate_only',
+      player: 'Shohei Ohtani',
+      year: 2018,
+      brand: 'Topps',
+      set: 'Update Series',
+      cardNumber: 'US1',
+      parallel: 'Gold /2018',
+      grade: { company: 'PSA', grade: '10' },
+    }],
+  });
+
+  assert.equal(confidence.observedIdentityEvidence.present, false);
+  assert.equal(confidence.needsManualConfirmation, true);
+  assert.ok(confidence.scanConfidenceScore <= 35);
+  assert.deepEqual(confidence.explanation.whyMatched, []);
+  assert.ok(confidence.manualConfirmationReasons.includes('no observed identity evidence'));
+});
