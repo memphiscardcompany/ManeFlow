@@ -14,6 +14,19 @@ const card = {
   parallel: 'Gold',
 };
 
+const completedSales = [{
+  id: 'sale-router-1',
+  cardId: card.id,
+  provider: 'eBay Marketplace Insights',
+  sourceType: 'sold',
+  isCompletedSale: true,
+  price: 125,
+  allInPrice: 125,
+  soldAt: '2026-07-28T12:00:00.000Z',
+  sourceMode: 'production',
+  valuationUse: true,
+}];
+
 function createStore() {
   const users = [
     { id: 'user-a', email: 'a@example.test', role: 'collector', plan: 'collector', emailVerifiedAt: new Date().toISOString() },
@@ -99,8 +112,17 @@ function setup() {
       return {
         status: 'valued_from_authorized_completed_sales',
         cardId: target.id,
-        valuation: { value: 125, range: { low: 115, high: 135 } },
+        marketMode: 'production',
+        valuation: {
+          value: 125,
+          range: { low: 115, high: 135 },
+          confidence: 88,
+          windows: {},
+          compDetails: { included: completedSales, excluded: [], needsReview: [] },
+          askingPriceContext: { listings: [], valuationUse: false },
+        },
         refresh: { performed: true, attempted: true },
+        askingPriceContext: { listings: [], error: null, valuationUse: false },
       };
     },
   };
@@ -119,6 +141,7 @@ function setup() {
     cache,
     pricingEngine,
     catalog: () => [card],
+    salesForCard: (target) => completedSales.filter((sale) => sale.cardId === target.id),
   });
   return { store, calls, cache, router };
 }
@@ -144,6 +167,24 @@ test('authenticated card pricing is calculated by ManeFlow', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].card.id, card.id);
   assert.equal(calls[0].options.reason, 'authenticated_card_pricing_read');
+});
+
+test('the existing card market screen receives the automatically calculated value and completed sales', async () => {
+  const { router, calls } = setup();
+  const res = response();
+  await router(request({ token: 'token-a', url: `/api/cards/${card.id}/market?window=365d&active=1` }), res);
+  assert.equal(res.statusCode, 200);
+  const body = parsed(res);
+  assert.equal(body.card.id, card.id);
+  assert.equal(body.valuation.value, 125);
+  assert.equal(body.marketMode, 'production');
+  assert.equal(body.pricingStatus, 'valued_from_authorized_completed_sales');
+  assert.equal(body.sales.length, 1);
+  assert.equal(body.sales[0].id, 'sale-router-1');
+  assert.equal(body.automaticPricing.askingPriceContext.valuationUse, false);
+  assert.match(body.message, /calculated this value automatically/i);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.reason, 'card_market_screen');
 });
 
 test('Vault creation ignores client-provided market values and triggers automatic pricing', async () => {
