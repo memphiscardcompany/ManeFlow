@@ -15,7 +15,8 @@ import { MetaOwnerRepository } from '../db/metaOwnerRepository.js';
 import { MetaOutboundQueryRepository } from '../db/metaOutboundQueryRepository.js';
 import { dispatchMetaBatch } from './meta-dispatcher.js';
 import { generateMetaReplyDraft } from './meta-draft-service.js';
-import { requirePlatformOwner } from './owner-authority.js';
+import { metaGraphReadiness } from './meta-graph-client.js';
+import { metaOperationMode, requirePlatformOwner } from './owner-authority.js';
 
 function originAllowed(req, config) {
   const origin = String(req.headers.origin || '');
@@ -77,6 +78,75 @@ function requireMutationSecurity(req, res, config, actor) {
   return true;
 }
 
+function boundedText(value, maximum = 4_000) {
+  return value == null ? null : String(value).slice(0, maximum);
+}
+
+function publicAttachments(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 50).map((attachment) => ({
+    id: boundedText(attachment?.id || attachment?.providerAttachmentId, 500),
+    type: boundedText(attachment?.type, 80),
+    mimeType: boundedText(attachment?.mimeType || attachment?.mime_type, 160),
+    fileName: boundedText(attachment?.fileName || attachment?.filename, 300),
+    size: Number.isFinite(Number(attachment?.size)) ? Number(attachment.size) : null,
+    storageStatus: boundedText(attachment?.storageStatus || attachment?.storage_status, 80),
+    privateObjectKey: boundedText(attachment?.privateObjectKey || attachment?.private_object_key, 1_000),
+  }));
+}
+
+function publicConversation(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    channel: row.channel || null,
+    providerAccountId: row.provider_account_id || null,
+    providerConversationId: row.provider_conversation_id || null,
+    providerSenderId: row.provider_sender_id || null,
+    state: row.state || null,
+    intent: row.intent || null,
+    intentConfidence: row.intent_confidence == null ? null : Number(row.intent_confidence),
+    labels: Array.isArray(row.labels) ? row.labels.slice(0, 50) : [],
+    latestMessage: boundedText(row.latest_message, 4_000),
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+  };
+}
+
+function publicMessage(row) {
+  return {
+    id: row.id,
+    providerMessageId: row.provider_message_id || null,
+    direction: row.direction || null,
+    body: boundedText(row.body, 4_000),
+    attachments: publicAttachments(row.attachment_manifest),
+    receivedAt: row.received_at || null,
+    sentAt: row.sent_at || null,
+    createdAt: row.created_at || null,
+  };
+}
+
+function publicDraft(row) {
+  return {
+    id: row.id,
+    version: Number(row.version || 0),
+    body: boundedText(row.body, 4_000),
+    source: row.source || null,
+    evidence: Array.isArray(row.evidence) ? row.evidence.slice(0, 100) : [],
+    status: row.status || null,
+    createdAt: row.created_at || null,
+  };
+}
+
+function publicConversationDetail(value) {
+  if (!value) return null;
+  return {
+    conversation: publicConversation(value.conversation),
+    messages: (value.messages || []).map(publicMessage),
+    drafts: (value.drafts || []).map(publicDraft),
+  };
+}
+
 function publicJob(job) {
   if (!job) return null;
   return {
@@ -119,6 +189,9 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
     if (!url.pathname.startsWith('/api/owner/meta/')) return false;
     const method = String(req.method || 'GET').toUpperCase();
 
+    const statusRead = url.pathname === '/api/owner/meta/status';
+    const conversationList = url.pathname === '/api/owner/meta/conversations';
+    const conversationRead = url.pathname.match(/^\/api\/owner\/meta\/conversations\/([0-9a-f-]+)$/i);
     const draftCreate = url.pathname.match(/^\/api\/owner\/meta\/conversations\/([0-9a-f-]+)\/drafts$/i);
     const draftApprove = url.pathname.match(/^\/api\/owner\/meta\/drafts\/([0-9a-f-]+)\/approve$/i);
     const draftReject = url.pathname.match(/^\/api\/owner\/meta\/drafts\/([0-9a-f-]+)\/reject$/i);
@@ -126,7 +199,7 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
     const outboundQueue = url.pathname.match(/^\/api\/owner\/meta\/outbound\/([0-9a-f-]+)\/queue$/i);
     const outboundRead = url.pathname.match(/^\/api\/owner\/meta\/outbound\/([0-9a-f-]+)$/i);
     const dispatchRun = url.pathname === '/api/owner/meta/dispatch/run';
-    if (!draftCreate && !draftApprove && !draftReject && !outboundList && !outboundQueue && !outboundRead && !dispatchRun) return false;
+    if (!statusRead && !conversationList && !conversationRead && !draftCreate && !draftApprove && !draftReject && !outboundList && !outboundQueue && !outboundRead && !dispatchRun) return false;
 
     if (!databaseRuntime?.pool || !databaseRuntime?.metaInboundRepository || !databaseRuntime?.metaOutboundRepository) {
       json(res, 503, { error: 'META_DATABASE_NOT_READY' });
@@ -146,6 +219,61 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
     const repository = new MetaOwnerRepository(databaseRuntime.pool);
     const queryRepository = new MetaOutboundQueryRepository(databaseRuntime.pool);
     try {
+      if (statusRead && method === 'GET') {
+        const [database, outboundCounts, recentConversations] = await Promise.all([
+          databaseRuntime.health(),
+          queryRepository.counts(owner.userId),
+          databaseRuntime.metaInboundRepository.listConversations(owner.userId, { limit: 1 }),
+        ]);
+        const provider = metaGraphReadiness(config);
+        json(res, 200, {
+          owner: {
+            userId: owner.userId,
+            mfaVerifiedAt: owner.mfaVerifiedAt,
+          },
+          operationMode: metaOperationMode(config),
+          humanApprovalRequired: true,
+          configuration: {
+            intakeEnabled: config.metaIntakeEnabled === true,
+            killSwitch: config.metaKillSwitch !== false,
+            outboundEnabled: config.metaOutboundEnabled === true,
+            outboundChannels: Array.isArray(config.metaOutboundChannels) ? config.metaOutboundChannels : [],
+            graphApiVersion: config.metaGraphApiVersion || null,
+            draftModelConfigured: Boolean(config.manebrainDraftModel && config.openaiApiKey),
+          },
+          provider,
+          database,
+          outboundCounts,
+          latestConversationAt: recentConversations[0]?.updated_at || null,
+        });
+        return true;
+      }
+
+      if (conversationList && method === 'GET') {
+        const conversations = await databaseRuntime.metaInboundRepository.listConversations(owner.userId, {
+          limit: Number(url.searchParams.get('limit') || 50),
+          beforeUpdatedAt: url.searchParams.get('beforeUpdatedAt'),
+          beforeId: url.searchParams.get('beforeId'),
+        });
+        json(res, 200, {
+          conversations: conversations.map(publicConversation),
+          pagination: conversations.length
+            ? {
+              nextBeforeUpdatedAt: conversations.at(-1).updated_at,
+              nextBeforeId: conversations.at(-1).id,
+            }
+            : null,
+        });
+        return true;
+      }
+
+      if (conversationRead && method === 'GET') {
+        const conversation = await databaseRuntime.metaInboundRepository.getConversation(owner.userId, conversationRead[1]);
+        if (!conversation) notFound(res, 'Meta conversation not found.');
+        else json(res, 200, publicConversationDetail(conversation));
+        return true;
+      }
+
       if (draftCreate && method === 'POST') {
         const body = await readJson(req, 300_000);
         let proposal;
@@ -175,7 +303,7 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
           evidence: (proposal.evidence || []).slice(0, 100),
           actorId: owner.userId,
         });
-        json(res, 201, { draft, humanApprovalRequired: true });
+        json(res, 201, { draft: publicDraft(draft), humanApprovalRequired: true });
         return true;
       }
 
@@ -201,7 +329,7 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
           actorId: owner.userId,
           reason: body.reason,
         });
-        json(res, 200, { draft });
+        json(res, 200, { draft: publicDraft(draft) });
         return true;
       }
 
