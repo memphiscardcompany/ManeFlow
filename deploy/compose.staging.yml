@@ -1,0 +1,184 @@
+name: maneflow-staging
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE_REF:?Set a reviewed digest-pinned PostgreSQL/pgvector image}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-maneflow_staging}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  redis:
+    image: ${REDIS_IMAGE_REF:?Set a reviewed digest-pinned Redis image}
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  migrate:
+    image: ${MANEFLOW_IMAGE_REF:?Set the exact ManeFlow image digest}
+    command: ["node", "scripts/migrate-postgres.js"]
+    environment:
+      DATABASE_URL: ${POSTGRES_ADMIN_DATABASE_URL:?Set the URL-encoded PostgreSQL administrator migration URL}
+      MANEFLOW_DATABASE_APP_PASSWORD: ${MANEFLOW_DATABASE_APP_PASSWORD:?Set MANEFLOW_DATABASE_APP_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    restart: "no"
+
+  vision:
+    image: ${MANEFLOW_VISION_IMAGE_REF:?Set the exact ManeFlow vision image digest}
+    environment:
+      MANEFLOW_DATA_DIR: /var/lib/maneflow/vision
+      MANEFLOW_CORE_URL: http://maneflow:4321
+      MANEFLOW_SERVICE_TOKEN: ${MANEFLOW_SERVICE_TOKEN:?Set MANEFLOW_SERVICE_TOKEN}
+      MANEFLOW_COMPUTE_DEVICE: ${MANEFLOW_COMPUTE_DEVICE:-cpu}
+      MANEFLOW_GPU_ALLOW_CPU_FALLBACK: ${MANEFLOW_GPU_ALLOW_CPU_FALLBACK:-false}
+      MANEFLOW_EMBEDDING_ENABLED: ${MANEFLOW_EMBEDDING_ENABLED:-false}
+      MANEFLOW_EMBEDDING_MODEL_PATH: ${MANEFLOW_EMBEDDING_MODEL_PATH:-}
+      MANEFLOW_EMBEDDING_EXECUTION_PROVIDER: ${MANEFLOW_EMBEDDING_EXECUTION_PROVIDER:-auto}
+      CARD_DETECTOR_BACKEND: ${CARD_DETECTOR_BACKEND:-classical}
+      CARD_DETECTOR_MODEL_PATH: ${CARD_DETECTOR_MODEL_PATH:-}
+    volumes:
+      - vision_data:/var/lib/maneflow/vision
+      - vision_models:/models:ro
+    expose: ["8741"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8741/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  maneflow:
+    image: ${MANEFLOW_IMAGE_REF:?Set the exact ManeFlow image digest}
+    environment:
+      NODE_ENV: production
+      RELEASE_CHANNEL: production
+      RELEASE_COMMIT_SHA: ${RELEASE_COMMIT_SHA:?Set the exact deployed commit SHA}
+      RELEASE_DEPLOYED_AT: ${RELEASE_DEPLOYED_AT:?Set the UTC deployment timestamp}
+      RELEASE_ENVIRONMENT: staging
+      MANEFLOW_WEB_RELEASE_ID: ${MANEFLOW_WEB_RELEASE_ID:?Set the immutable web release identifier}
+      MANEFLOW_API_RELEASE_ID: ${MANEFLOW_API_RELEASE_ID:?Set the immutable API release identifier}
+      MANEFLOW_VISION_RELEASE_ID: ${MANEFLOW_VISION_RELEASE_ID:?Set the immutable vision release identifier}
+      MANEFLOW_MIGRATION_VERSION: "008"
+      HOST: 0.0.0.0
+      PORT: 4321
+      PUBLIC_BASE_URL: https://${MANEFLOW_DOMAIN:?Set MANEFLOW_DOMAIN}
+      ALLOWED_ORIGINS: https://${MANEFLOW_DOMAIN}
+      MANEFLOW_WIDGET_ALLOWED_ORIGINS: https://${MANEFLOW_DOMAIN}
+      STORAGE_MODE: postgres
+      DATABASE_URL: ${MANEFLOW_APP_DATABASE_URL:?Set the URL-encoded maneflow_app database URL}
+      DATABASE_SSL: "false"
+      REDIS_URL: redis://redis:6379/0
+      CACHE_MODE: redis
+      MANEFLOW_VISION_WORKER_URL: http://vision:8741
+      MANEFLOW_SCAN_JOB_DIR: /var/lib/maneflow/scan-jobs
+      MANEFLOW_SCAN_JOB_STORAGE_DURABLE: "true"
+      MANEFLOW_SCAN_JOB_MAX_ITEMS: ${MANEFLOW_SCAN_JOB_MAX_ITEMS:-1000}
+      MANEFLOW_SCAN_JOB_MAX_ITEM_BYTES: ${MANEFLOW_SCAN_JOB_MAX_ITEM_BYTES:-20000000}
+      MANEFLOW_SCAN_JOB_CONCURRENCY: ${MANEFLOW_SCAN_JOB_CONCURRENCY:-2}
+      MANEFLOW_SCAN_JOB_MAX_ATTEMPTS: ${MANEFLOW_SCAN_JOB_MAX_ATTEMPTS:-2}
+      MANEFLOW_SCAN_JOB_RETENTION_HOURS: ${MANEFLOW_SCAN_JOB_RETENTION_HOURS:-24}
+      MANEFLOW_REQUIRE_AUTHENTICATION: "true"
+      MANEFLOW_REQUIRE_EMAIL_VERIFICATION: "true"
+      MANEFLOW_CSRF_PROTECTION: "true"
+      MANEFLOW_ALLOW_LEGACY_ADMIN_TOKEN: "false"
+      MANEFLOW_ALLOW_GUEST_WRITES: "false"
+      MANEFLOW_ALLOW_PUBLIC_SIGNUPS: ${MANEFLOW_ALLOW_PUBLIC_SIGNUPS:-true}
+      MANEFLOW_EXPOSE_DEV_TOKENS: "false"
+      MANEFLOW_DEMO_MODE: ${MANEFLOW_DEMO_MODE:-true}
+      MANEFLOW_API_TOKEN: ${MANEFLOW_API_TOKEN:?Set MANEFLOW_API_TOKEN}
+      MANEFLOW_SERVICE_TOKEN: ${MANEFLOW_SERVICE_TOKEN:?Set MANEFLOW_SERVICE_TOKEN}
+      PROVIDER_WEBHOOK_SECRET: ${PROVIDER_WEBHOOK_SECRET:?Set PROVIDER_WEBHOOK_SECRET}
+      MANEFLOW_EMAIL_WEBHOOK_URL: ${MANEFLOW_EMAIL_WEBHOOK_URL:?Set MANEFLOW_EMAIL_WEBHOOK_URL}
+      MANEFLOW_EMAIL_WEBHOOK_SECRET: ${MANEFLOW_EMAIL_WEBHOOK_SECRET:?Set MANEFLOW_EMAIL_WEBHOOK_SECRET}
+      EBAY_OAUTH_STATE_SECRET: ${EBAY_OAUTH_STATE_SECRET:?Set EBAY_OAUTH_STATE_SECRET}
+      MANEBRAIN_META_INTAKE_ENABLED: "false"
+      MANEBRAIN_META_KILL_SWITCH: "true"
+      MANEBRAIN_META_OUTBOUND_ENABLED: "false"
+    volumes:
+      - scan_jobs:/var/lib/maneflow/scan-jobs
+    expose: ["4321"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      vision:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4321/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    read_only: true
+    tmpfs: ["/tmp"]
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    restart: unless-stopped
+
+  caddy:
+    image: ${CADDY_IMAGE_REF:?Set a reviewed digest-pinned Caddy image}
+    environment:
+      MANEFLOW_DOMAIN: ${MANEFLOW_DOMAIN:?Set MANEFLOW_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      maneflow:
+        condition: service_healthy
+    networks: [edge, internal]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    restart: unless-stopped
+
+networks:
+  edge:
+  internal:
+    internal: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  vision_data:
+  vision_models:
+  scan_jobs:
+  caddy_data:
+  caddy_config:
