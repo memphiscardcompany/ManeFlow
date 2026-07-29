@@ -50,6 +50,17 @@ class Settings(BaseSettings):
     card_detector_confidence: float = 0.35
     card_detector_iou: float = 0.50
 
+    # Centralized compute policy. GPU execution is selected only when the
+    # requested runtime is available and the workload is expected to benefit.
+    maneflow_compute_device: str = "auto"
+    maneflow_gpu_device_id: int = 0
+    maneflow_gpu_memory_fraction: float = 0.85
+    maneflow_gpu_allow_cpu_fallback: bool = True
+    maneflow_gpu_mixed_precision: bool = True
+    maneflow_gpu_max_batch_size: str = "auto"
+    maneflow_gpu_profile: str = "interactive"
+    maneflow_gpu_min_free_vram_mb: int = 1536
+
     roboflow_detection_enabled: bool = False
     roboflow_model_endpoint: str | None = None
     roboflow_api_key: str | None = None
