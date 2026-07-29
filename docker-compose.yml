@@ -61,7 +61,8 @@ services:
   maneflow:
     build: .
     environment:
-      NODE_ENV: production
+      # This compose file is a local/private-beta runtime, not an attested public production release.
+      NODE_ENV: development
       RELEASE_CHANNEL: private-beta
       HOST: 0.0.0.0
       PORT: 4321
@@ -70,6 +71,8 @@ services:
       DATABASE_URL: postgresql://maneflow_app:${MANEFLOW_DATABASE_APP_PASSWORD:-maneflow-local-app-change-me}@postgres:5432/maneflow
       REDIS_URL: redis://redis:6379/0
       MANEFLOW_VISION_WORKER_URL: http://vision:8741
+      MANEFLOW_SCAN_JOB_DIR: /var/lib/maneflow/scan-jobs
+      MANEFLOW_SCAN_JOB_STORAGE_DURABLE: "true"
       MANEFLOW_DEMO_MODE: ${MANEFLOW_DEMO_MODE:-true}
       MANEFLOW_ALLOW_GUEST_WRITES: ${MANEFLOW_ALLOW_GUEST_WRITES:-false}
       MANEFLOW_ALLOW_PUBLIC_SIGNUPS: ${MANEFLOW_ALLOW_PUBLIC_SIGNUPS:-false}
@@ -79,6 +82,8 @@ services:
       EBAY_OAUTH_STATE_SECRET: ${EBAY_OAUTH_STATE_SECRET:?Set EBAY_OAUTH_STATE_SECRET}
     env_file:
       - .env
+    volumes:
+      - maneflow_scan_jobs:/var/lib/maneflow/scan-jobs
     ports:
       - "4321:4321"
     depends_on:
@@ -101,3 +106,4 @@ volumes:
   maneflow_postgres:
   maneflow_redis:
   maneflow_vision_data:
+  maneflow_scan_jobs:
