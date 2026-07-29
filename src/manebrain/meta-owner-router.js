@@ -172,7 +172,7 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
           conversationId: draftCreate[1],
           body: proposal.body,
           source: proposal.source,
-          evidence: [...(proposal.evidence || []), ...(Array.isArray(body.evidence) ? body.evidence : [])].slice(0, 100),
+          evidence: (proposal.evidence || []).slice(0, 100),
           actorId: owner.userId,
         });
         json(res, 201, { draft, humanApprovalRequired: true });
