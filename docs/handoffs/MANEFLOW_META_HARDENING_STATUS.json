@@ -1,0 +1,41 @@
+{
+  "recordedAt": "2026-07-29T13:43:00Z",
+  "repository": "memphiscardcompany/ManeFlow",
+  "branch": "codex/meta-hardening-20260729-0802",
+  "baseBranch": "codex/maneflow-continuation-20260729-0614",
+  "status": "implemented_ci_pending",
+  "productionDeploymentEnabled": false,
+  "meta": {
+    "killSwitchDefault": true,
+    "intakeDefault": false,
+    "outboundDefault": false,
+    "defaultOutboundChannels": [
+      "messenger",
+      "instagram_dm"
+    ],
+    "commentChannelsDefault": false,
+    "attachmentRetrieval": "bounded_allowlisted",
+    "outboundInspection": "owner_only_keyset_paginated",
+    "providerEchoReconciliation": "implemented_not_live",
+    "migrationVersion": "008"
+  },
+  "verified": [],
+  "notVerified": [
+    "GitHub Actions on exact branch head",
+    "public HTTPS webhook deployment",
+    "Meta callback challenge",
+    "Page and Instagram professional-account subscriptions",
+    "production token health",
+    "Business Verification and App Review",
+    "owner MFA and recent reauthentication",
+    "private attachment object storage",
+    "real signed inbound events",
+    "real owner-approved outbound round trip"
+  ],
+  "blockedBy": [
+    "authenticated Meta dashboard actions",
+    "production PostgreSQL and object storage",
+    "deployment secret manager",
+    "public first-party staging deployment"
+  ]
+}
