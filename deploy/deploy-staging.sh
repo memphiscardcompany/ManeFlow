@@ -57,7 +57,7 @@ chmod 0600 "${STATE_DIR}/${RELEASE_SHA}.env"
 
 # Back up an existing staging state before migrations. First deployment has nothing to back up.
 if test -n "$("${COMPOSE[@]}" ps -q postgres)" && test -f "${STATE_DIR}/CURRENT_RELEASE"; then
-  "${SCRIPT_DIR}/backup-staging.sh" "$ENV_FILE" "$RELEASE_FILE" "$BACKUP_DIR"
+  bash "${SCRIPT_DIR}/backup-staging.sh" "$ENV_FILE" "$RELEASE_FILE" "$BACKUP_DIR"
 fi
 
 "${COMPOSE[@]}" run --rm migrate
@@ -78,7 +78,7 @@ if [[ "$health_ok" != true ]]; then
   echo "Staging health check failed. Production is unchanged because this is staging." >&2
   echo "Inspect: ${COMPOSE[*]} logs --tail=300 maneflow vision caddy" >&2
   if test -f "${STATE_DIR}/PREVIOUS_RELEASE.env"; then
-    echo "Application rollback: ${SCRIPT_DIR}/rollback-staging.sh '$ENV_FILE' '${STATE_DIR}/PREVIOUS_RELEASE.env'" >&2
+    echo "Application rollback: bash ${SCRIPT_DIR}/rollback-staging.sh '$ENV_FILE' '${STATE_DIR}/PREVIOUS_RELEASE.env'" >&2
   fi
   exit 70
 fi
