@@ -13,6 +13,8 @@ import { DatabaseRuntime } from './src/db/databaseRuntime.js';
 import { createMetaOwnerRouter } from './src/manebrain/meta-owner-router.js';
 import { createScanPipeline } from './src/services/scan-pipeline.js';
 import { createDurableScanJobRouter } from './src/scan-job-router.js';
+import { createAutomaticPricingEngine } from './src/services/automatic-pricing.js';
+import { createAutomaticPricingRouter } from './src/automatic-pricing-router.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -27,8 +29,8 @@ async function readJsonArrayIfPresent(filePath) {
     const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
     return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    if (error.code === 'ENOENT') return [];
-    throw error;
+    if (error.code !== 'ENOENT') throw error;
+    return [];
   }
 }
 const baseCards = JSON.parse(await fs.readFile(path.join(__dirname, 'src/data/cards.json'), 'utf8'));
@@ -43,6 +45,62 @@ const providers = createProviderRegistry(config, sales);
 const databaseRuntime = new DatabaseRuntime(config);
 if (databaseRuntime.configured) await databaseRuntime.initialize();
 
+function catalog() {
+  return [...cards, ...(store.state.customCards || [])];
+}
+
+function allPricingSales() {
+  const demoSales = config.demoMode
+    ? sales.map((sale) => ({
+      ...sale,
+      sourceMode: 'demo',
+      authorizationBasis: 'demo',
+      rightsNotes: 'Synthetic demonstration comp. Not a public market value.',
+    }))
+    : [];
+  const corrections = store.compCorrections?.() || {};
+  return [...demoSales, ...(store.state.customSales || [])].map((sale) => (
+    corrections[sale.id]?.correction
+      ? { ...sale, ...corrections[sale.id].correction, corrected: true }
+      : sale
+  ));
+}
+
+function salesForCard(card) {
+  return card?.id ? allPricingSales().filter((sale) => sale.cardId === card.id) : [];
+}
+
+function saleQueryFromCard(card = {}) {
+  const grade = card.grade && typeof card.grade === 'object' ? card.grade.grade : card.grade;
+  return [
+    card.year,
+    card.brand || card.manufacturer,
+    card.set || card.product,
+    card.player || card.subject,
+    card.cardNumber,
+    card.parallel || card.variation,
+    card.grade?.company || card.grader,
+    grade,
+  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+async function activeAskingListingsForCard(card, { limit = 12 } = {}) {
+  const ebay = providers.byName.get('eBay');
+  if (!card || !ebay?.supportsActiveListings || typeof ebay.searchActiveListings !== 'function') {
+    return { listings: [], error: null };
+  }
+  try {
+    const listings = await ebay.searchActiveListings({
+      query: saleQueryFromCard(card),
+      limit,
+      binOnly: true,
+    });
+    return { listings, error: null };
+  } catch (error) {
+    return { listings: [], error: String(error?.message || error).slice(0, 800) };
+  }
+}
+
 const ocrService = new LightOcrService({
   enabled: config.localOcrEnabled,
   provider: config.localOcrProvider,
@@ -53,6 +111,22 @@ const coreRouter = createRouter({ config, cards, sales, providers, store, cache,
 const metaOwnerRouter = createMetaOwnerRouter({ config, store, databaseRuntime });
 const scanPipeline = createScanPipeline({ config, cards, sales, store, cache, ocrService, databaseRuntime });
 const scanJobRuntime = await createDurableScanJobRouter({ config, store, processor: scanPipeline });
+const automaticPricingEngine = createAutomaticPricingEngine({
+  config,
+  providers,
+  store,
+  cache,
+  catalog,
+  salesForCard,
+  activeAskingListingsForCard,
+});
+const automaticPricingRouter = createAutomaticPricingRouter({
+  config,
+  store,
+  cache,
+  pricingEngine: automaticPricingEngine,
+  catalog,
+});
 
 if (typeof store.deleteUser === 'function' && typeof scanJobRuntime.spool.deleteOwnerJobs === 'function') {
   const deleteUser = store.deleteUser.bind(store);
@@ -69,6 +143,8 @@ const router = async (req, res) => {
     if (metaHandled || res.writableEnded) return;
     const scanJobHandled = await scanJobRuntime.handle(req, res);
     if (scanJobHandled || res.writableEnded) return;
+    const automaticPricingHandled = await automaticPricingRouter(req, res);
+    if (automaticPricingHandled || res.writableEnded) return;
     await coreRouter(req, res);
   } catch (error) {
     if (!res.headersSent) {
@@ -93,6 +169,7 @@ server.listen(config.port, config.host, () => {
   console.log(`Open ${config.publicBaseUrl}`);
   console.log(`Market mode: ${config.demoMode ? 'DEMO/MIXED — connect approved data before public value claims' : 'PRODUCTION'}`);
   console.log(`Durable scan jobs: ${config.scanJobDir} · concurrency ${config.scanJobConcurrency}`);
+  console.log(`Automatic pricing: ${providers.byName.get('eBay')?.marketplaceInsightsEnabled ? 'authorized completed-sale refresh enabled' : 'cached evidence only — Marketplace Insights not enabled'}`);
 });
 
 function shutdown(signal) {
