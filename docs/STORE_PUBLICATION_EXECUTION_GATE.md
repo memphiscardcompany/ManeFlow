@@ -36,8 +36,10 @@ The real status file is intentionally ignored by source control because it can c
 3. Configure EAS-managed or approved Apple distribution credentials.
 4. Create the App Store Connect application record.
 5. Complete App Privacy answers from the actual production data flows.
-6. Run `Build ManeFlow iOS and Android Store Release` with submission disabled first.
-7. Test through TestFlight, then rerun with submission enabled after approval.
+6. Configure the `mobile-store-production` GitHub environment with required reviewers, prevented self-review, and protected release refs.
+7. Run `Build ManeFlow iOS and Android Store Release` with submission enabled. Inspect the retained evidence, EAS logs, signing state, commit, and versions while the submit job waits for environment approval.
+8. Approve the environment only to upload those commit-bound builds. Use submission disabled for build-only rehearsals.
+9. Test the uploaded iOS binary through TestFlight before requesting App Store review or public release.
 
 ## Google Play
 

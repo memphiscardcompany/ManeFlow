@@ -39,6 +39,8 @@ for (const broadPermission of ['READ_MEDIA_IMAGES', 'READ_MEDIA_VIDEO', 'READ_EX
   assert((expo.android?.blockedPermissions || []).some((permission) => permission.includes(broadPermission)), `Android broad media/storage permission is not blocked: ${broadPermission}`);
 }
 assert(easJson.cli?.appVersionSource === 'remote', 'EAS should use remote version source.');
+assert(easJson.cli?.version === '16.32.0', 'EAS CLI must be pinned to the reviewed release-tool version.');
+assert(easJson.cli?.requireCommit === true, 'Production EAS builds must require a committed Git source.');
 assert(easJson.build?.production?.autoIncrement === true, 'Production EAS build must auto-increment store build numbers.');
 assert(easJson.build?.production?.env?.EXPO_PUBLIC_API_BASE_URL === 'https://mane.memphiscardcompany.com', 'Production API URL must be the ManeFlow HTTPS domain.');
 assert(!/sk-[A-Za-z0-9_-]{16,}/.test(JSON.stringify(appJson) + JSON.stringify(easJson)), 'Mobile config contains a secret-shaped value.');

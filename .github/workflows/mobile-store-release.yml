@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       submit_after_build:
-        description: Submit the latest successful production builds to App Store Connect and Google Play
+        description: Submit the exact builds from this run after the production environment is approved
         required: true
         type: boolean
         default: false
@@ -13,9 +13,12 @@ permissions:
   contents: read
 
 jobs:
-  verify-and-build-mobile:
+  verify_and_build_mobile:
     runs-on: ubuntu-24.04
     timeout-minutes: 240
+    outputs:
+      ios_build_id: ${{ steps.capture_build_evidence.outputs.ios_build_id }}
+      android_build_id: ${{ steps.capture_build_evidence.outputs.android_build_id }}
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
@@ -46,18 +49,79 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Install EAS CLI
-        run: npm install --global eas-cli@16
+        run: npm install --global eas-cli@16.32.0
 
       - name: Verify Expo account
         run: eas whoami
 
       - name: Build signed iOS and Android production artifacts
         working-directory: apps/mobile-expo
-        run: eas build --platform all --profile production --non-interactive --wait
+        run: eas build --platform all --profile production --non-interactive --wait --json > "$RUNNER_TEMP/eas-builds.json"
 
-      - name: Submit latest production builds
-        if: ${{ inputs.submit_after_build }}
+      - name: Bind build evidence to this commit
+        id: capture_build_evidence
+        run: |
+          app_version="$(node -p "JSON.parse(require('node:fs').readFileSync('apps/mobile-expo/app.json', 'utf8')).expo.version")"
+          node scripts/capture-eas-build-evidence.mjs \
+            --input "$RUNNER_TEMP/eas-builds.json" \
+            --output reports/mobile-release-evidence.json \
+            --github-output "$GITHUB_OUTPUT" \
+            --expected-commit "$GITHUB_SHA" \
+            --expected-profile production \
+            --expected-app-version "$app_version" \
+            --source-ref "$GITHUB_REF" \
+            --workflow-run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+      - name: Upload commit-bound mobile build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ManeFlow-Mobile-Build-Evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/mobile-release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+
+  submit-mobile:
+    name: Submit exact mobile builds
+    needs: verify_and_build_mobile
+    if: ${{ inputs.submit_after_build }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment:
+      name: mobile-store-production
+    concurrency:
+      group: maneflow-mobile-store-production
+      cancel-in-progress: false
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      IOS_BUILD_ID: ${{ needs.verify_and_build_mobile.outputs.ios_build_id }}
+      ANDROID_BUILD_ID: ${{ needs.verify_and_build_mobile.outputs.android_build_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/mobile-expo/package-lock.json
+
+      - name: Require promotion credentials and exact build IDs
+        run: |
+          test -n "$EXPO_TOKEN" || (echo "EXPO_TOKEN is not configured" && exit 1)
+          test -n "$IOS_BUILD_ID" || (echo "The iOS build ID is missing" && exit 1)
+          test -n "$ANDROID_BUILD_ID" || (echo "The Android build ID is missing" && exit 1)
+
+      - name: Install mobile dependencies
+        working-directory: apps/mobile-expo
+        run: npm ci --no-audit --no-fund
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli@16.32.0
+
+      - name: Verify Expo account
+        run: eas whoami
+
+      - name: Submit exact production builds
         working-directory: apps/mobile-expo
         run: |
-          eas submit --platform ios --profile production --latest --non-interactive
-          eas submit --platform android --profile production --latest --non-interactive
+          eas submit --platform ios --profile production --id "$IOS_BUILD_ID" --non-interactive --wait
+          eas submit --platform android --profile production --id "$ANDROID_BUILD_ID" --non-interactive --wait
