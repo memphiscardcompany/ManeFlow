@@ -28,12 +28,18 @@ This record contains no secrets, access tokens, client tokens, verification toke
 - Meta outbound disabled by default.
 - Owner-approved text is bound to its SHA-256 digest.
 - Attachment URLs require HTTPS and an exact configured host allowlist on the initial URL and every redirect.
+- Bounded attachment retrieval enforces redirect, timeout, content-type, and byte limits before private-storage integration.
 - Changed drafts, non-owner actors, disabled outbound, exhausted retries, and replayed queue transitions fail closed.
 - PostgreSQL owner-only tables use forced row-level security and idempotency constraints.
 - Signed inbound events are normalized without synthetic provider IDs or timestamps.
 - Durable inbound persistence is set-based, replay-safe, owner-scoped, and audit-chained.
 - Conversation listing uses bounded keyset pagination instead of unbounded offset scans.
 - High-throughput inbound, conversation, message, draft, and outbound queue access paths have explicit indexes.
+- A standalone owner-approved outbound worker claims jobs with `FOR UPDATE SKIP LOCKED`, loads the target under owner-scoped RLS, verifies the approved-text digest, and calls only supported direct-message channels.
+- Messenger requests use the versioned Page `/messages` endpoint and an explicit `RESPONSE` payload.
+- Instagram direct messages use a separately configurable Instagram Graph endpoint and token.
+- Known provider rejection is separated from ambiguous delivery. Network errors, provider 5xx responses, and success responses without a stable message ID become terminal `DELIVERY_UNKNOWN` instead of automatic duplicate retries.
+- Provider access tokens are required through runtime configuration and are excluded from logs, repository files, and response metadata.
 
 ## Implemented but not live
 
@@ -42,8 +48,9 @@ This record contains no secrets, access tokens, client tokens, verification toke
 - Owner-only conversation status, list, and detail routes are present and fail closed through immutable owner authority, MFA, and recent reauthentication.
 - The Evidence-Bounded Selective Matcher can attach conservative recognition evidence to later processing without treating vector similarity as observed identity evidence.
 - Durable outbound jobs support leases, fencing, bounded retries, terminal ambiguous-delivery state, and exact provider-message recording.
+- `npm run meta:worker` starts the standalone dispatcher only when intake and outbound are enabled, the kill switch is disabled, PostgreSQL is configured, exactly one owner UUID is present, and provider tokens are supplied through the runtime environment.
 
-These controls are staging foundations. There is no verified public webhook deployment, production Meta token, background conversation worker, production attachment retriever, live owner-console session with enrolled MFA, or real outbound provider round trip. The Meta subsystem must not be described as live.
+These controls are staging foundations. There is no verified public webhook deployment, production Meta token, background conversation-analysis worker, private object-storage attachment integration, live owner-console session with enrolled MFA, or real outbound provider round trip. The Meta subsystem must not be described as live.
 
 ## Release-blocking evidence still required
 
@@ -51,7 +58,7 @@ These controls are staging foundations. There is no verified public webhook depl
 2. Configure the verification token in the production secret manager and in Meta without recording its value here.
 3. Verify the webhook challenge and an exact raw-body signature from Meta.
 4. Verify the exact Memphis Card Company Page and Instagram professional account and place their IDs in the server-side allowlist.
-5. Add only the minimum permissions shown by the current Meta dashboard for the selected login model.
+5. Select and document the exact Instagram login model, then use only the minimum permissions shown by the current Meta dashboard for that model.
 6. Configure exact OAuth callback, application domain, Privacy Policy, Terms, and data-deletion handling.
 7. Complete account linkage, Page/account subscriptions, Business Verification, and App Review as required by Meta for the claimed features.
 8. Receive a real authorized test event, deduplicate it, create a draft, and display it only in the owner console.
@@ -59,8 +66,9 @@ These controls are staging foundations. There is no verified public webhook depl
 10. Prove ordinary ManeFlow users cannot discover or invoke any Meta route, API, queue, search, cache, export, notification, or storage object.
 11. Prove the kill switch and token/session revocation halt processing and outbound actions.
 12. Confirm `/release` metadata matches the deployed canonical commit.
-13. Add the durable background worker, bounded provider attachment retrieval, dead-letter inspection, and delivery-echo reconciliation.
+13. Connect the bounded attachment retriever to private object storage with retention/deletion evidence, add dead-letter inspection, and implement delivery-echo reconciliation.
 14. Enroll and verify Joshua's owner MFA and recent-reauthentication path without weakening the current fail-closed gate.
+15. Run the dispatcher under a supervised staging process, prove graceful shutdown/restart, and verify that no unapproved draft can enter `SEND_QUEUED`.
 
 ## Safe current mode
 
