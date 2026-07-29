@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "status": "NOT_RUN",
+  "profile": "candidate",
+  "dataset_manifest_hash": null,
+  "model_checksum": null,
+  "requested_device": null,
+  "selected_device": null,
+  "metrics": null,
+  "reason": "No candidate model was trained or promoted."
+}

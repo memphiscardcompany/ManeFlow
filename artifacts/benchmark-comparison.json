@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "status": "NOT_RUN",
+  "baseline": null,
+  "candidate": null,
+  "promotion_decision": "BLOCKED_NO_BENCHMARK",
+  "reason": "Baseline and candidate benchmark artifacts do not yet exist."
+}
