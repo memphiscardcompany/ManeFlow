@@ -74,6 +74,15 @@ try {
     if (!found.get(table)?.force_rowsecurity) throw new Error(`FORCE ROW LEVEL SECURITY is not enabled on ${table}.`);
   }
 
+  const echoColumn = await pool.query(`
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'manebrain_outbound_jobs'
+      AND column_name = 'provider_echo_at'
+  `);
+  if (!echoColumn.rowCount) throw new Error('Meta provider echo reconciliation column is missing.');
+
   const runtimeRole = await pool.query(`
     SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolbypassrls
     FROM pg_roles
@@ -111,6 +120,7 @@ try {
     'manebrain_messages_conversation_cursor_idx',
     'manebrain_drafts_conversation_version_idx',
     'manebrain_outbound_queue_idx',
+    'manebrain_outbound_jobs_provider_echo_idx',
   ];
   const operationalIndexes = await pool.query(`
     SELECT indexname
@@ -132,6 +142,7 @@ try {
     ok: true,
     pgvectorVersion: extension.rows[0].extversion,
     tables: requiredRelations,
+    metaDeliveryReconciliation: { providerEchoAt: true },
     hnswIndexes: hnsw.rows.map((row) => row.indexname),
     operationalIndexes: [...foundOperationalIndexes].sort(),
     runtimeRole: { canLogin: role.rolcanlogin, bypassRls: role.rolbypassrls },
