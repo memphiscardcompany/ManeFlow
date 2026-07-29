@@ -11,6 +11,16 @@ async function read(relativePath) {
   return fs.readFile(path.join(root, relativePath), 'utf8');
 }
 
+function serviceBlock(compose, service, nextService = null) {
+  const marker = `  ${service}:\n`;
+  const start = compose.indexOf(marker);
+  assert.notEqual(start, -1, `Missing Compose service: ${service}`);
+  const end = nextService
+    ? compose.indexOf(`  ${nextService}:\n`, start + marker.length)
+    : compose.indexOf('\nnetworks:', start + marker.length);
+  return compose.slice(start, end === -1 ? undefined : end);
+}
+
 test('application container uses the committed lockfile and a non-root runtime', async () => {
   const dockerfile = await read('Dockerfile');
   assert.match(dockerfile, /COPY package\.json package-lock\.json/);
@@ -31,20 +41,29 @@ test('local compose persists scan jobs without claiming a public production rele
 
 test('first-party staging exposes only the TLS proxy and keeps data services private', async () => {
   const compose = await read('deploy/compose.staging.yml');
-  assert.match(compose, /PUBLIC_BASE_URL: https:\/\/\$\{MANEFLOW_DOMAIN/);
-  assert.match(compose, /MANEFLOW_SCAN_JOB_STORAGE_DURABLE: "true"/);
-  assert.match(compose, /scan_jobs:\/var\/lib\/maneflow\/scan-jobs/);
+  const postgres = serviceBlock(compose, 'postgres', 'redis');
+  const redis = serviceBlock(compose, 'redis', 'migrate');
+  const vision = serviceBlock(compose, 'vision', 'maneflow');
+  const maneflow = serviceBlock(compose, 'maneflow', 'caddy');
+  const caddy = serviceBlock(compose, 'caddy');
+
+  assert.match(maneflow, /PUBLIC_BASE_URL: https:\/\/\$\{MANEFLOW_DOMAIN/);
+  assert.match(maneflow, /MANEFLOW_SCAN_JOB_STORAGE_DURABLE: "true"/);
+  assert.match(maneflow, /scan_jobs:\/var\/lib\/maneflow\/scan-jobs/);
   assert.match(compose, /internal:\s*\n\s*internal: true/);
-  assert.match(compose, /caddy:[\s\S]*ports:[\s\S]*"443:443"/);
-  assert.doesNotMatch(compose, /postgres:[\s\S]{0,600}\n\s+ports:/);
-  assert.doesNotMatch(compose, /redis:[\s\S]{0,500}\n\s+ports:/);
-  assert.doesNotMatch(compose, /vision:[\s\S]{0,1200}\n\s+ports:/);
-  assert.doesNotMatch(compose, /maneflow:[\s\S]{0,2200}\n\s+ports:/);
+  assert.match(caddy, /ports:[\s\S]*"443:443"/);
+
+  for (const [name, block] of Object.entries({ postgres, redis, vision, maneflow })) {
+    assert.doesNotMatch(block, /\n\s+ports:/, `${name} must not expose host ports`);
+  }
+  assert.match(vision, /\n\s+expose: \["8741"\]/);
+  assert.match(maneflow, /\n\s+expose: \["4321"\]/);
+
   for (const variable of ['MANEFLOW_IMAGE_REF', 'MANEFLOW_VISION_IMAGE_REF', 'POSTGRES_IMAGE_REF', 'REDIS_IMAGE_REF', 'CADDY_IMAGE_REF']) {
     assert.match(compose, new RegExp(`\\$\\{${variable}:\\?`));
   }
-  assert.match(compose, /MANEBRAIN_META_KILL_SWITCH: "true"/);
-  assert.match(compose, /MANEBRAIN_META_OUTBOUND_ENABLED: "false"/);
+  assert.match(maneflow, /MANEBRAIN_META_KILL_SWITCH: "true"/);
+  assert.match(maneflow, /MANEBRAIN_META_OUTBOUND_ENABLED: "false"/);
 });
 
 test('Caddy contract provisions first-party TLS and restrictive proxy headers', async () => {
