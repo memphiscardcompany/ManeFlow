@@ -32,6 +32,38 @@ jobs:
       - name: Verify source capsule inventory and evidence
         run: npm run verify:release
 
+  vision-cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: vision-worker
+    env:
+      MANEFLOW_COMPUTE_DEVICE: cpu
+      MANEFLOW_GPU_ALLOW_CPU_FALLBACK: "false"
+      EMBEDDING_ENABLED: "false"
+      CARD_DETECTOR_BACKEND: classical
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Record Python runtime
+        run: python3 --version
+      - name: Install deterministic CPU vision dependencies
+        run: python3 -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
+      - name: Run CPU-only vision tests
+        run: python3 -m pytest app/tests -q
+      - name: Verify GPU doctor fails safely to CPU on a non-GPU runner
+        run: python3 -m maneflow_vision.gpu.status
+      - name: Validate empty model registry and public dataset schema
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          registry = json.loads(Path('../artifacts/model-registry.json').read_text())
+          assert registry == {'schema_version': 1, 'models': []}
+          schema = json.loads(Path('../data/dataset-manifest.schema.json').read_text())
+          assert schema['title'] == 'ManeFlow dataset manifest record'
+          PY
+
   native-client:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
