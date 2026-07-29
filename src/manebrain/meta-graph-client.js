@@ -5,7 +5,15 @@ const SUPPORTED_CHANNELS = new Set([...DIRECT_CHANNELS, ...COMMENT_CHANNELS]);
 function cleanBaseUrl(value, fallback) {
   const candidate = String(value || fallback || '').trim().replace(/\/+$/, '');
   const parsed = new URL(candidate);
-  if (parsed.protocol !== 'https:') throw new TypeError('Meta Graph API base URLs must use HTTPS.');
+  if (
+    parsed.protocol !== 'https:'
+    || parsed.username
+    || parsed.password
+    || parsed.search
+    || parsed.hash
+  ) {
+    throw new TypeError('Meta Graph API base URLs must be credential-free HTTPS origins.');
+  }
   return parsed.toString().replace(/\/$/, '');
 }
 
@@ -19,9 +27,21 @@ function required(value, name, maximum = 4_000) {
 function graphVersion(value) {
   const normalized = required(value, 'META_GRAPH_API_VERSION', 32);
   if (!/^v\d+\.\d+$/.test(normalized)) {
-    throw new TypeError('META_GRAPH_API_VERSION must use an explicit version such as v23.0.');
+    throw new TypeError('META_GRAPH_API_VERSION must use an explicit version such as v25.0.');
   }
   return normalized;
+}
+
+function outboundChannels(value) {
+  const values = Array.isArray(value) ? value : String(value || '').split(',');
+  const normalized = values.map((item) => String(item).trim().toLowerCase()).filter(Boolean);
+  if (!normalized.length) return new Set(['messenger', 'instagram_dm']);
+  const result = new Set();
+  for (const channel of normalized) {
+    if (!SUPPORTED_CHANNELS.has(channel)) throw new TypeError(`Unsupported configured Meta outbound channel: ${channel}`);
+    result.add(channel);
+  }
+  return result;
 }
 
 function truncate(value, maximum = 240) {
@@ -76,6 +96,8 @@ export function metaGraphReadiness(config = {}) {
   if (!String(config.metaInstagramAccessToken || '').trim()) missing.push('META_INSTAGRAM_ACCESS_TOKEN');
   if (!String(config.metaPageId || '').trim()) missing.push('META_PAGE_ID');
   if (!String(config.metaInstagramAccountId || '').trim()) missing.push('META_INSTAGRAM_ACCOUNT_ID');
+  const channels = Array.isArray(config.metaOutboundChannels) ? config.metaOutboundChannels : [];
+  if (!channels.length) missing.push('MANEBRAIN_META_OUTBOUND_CHANNELS');
   return { ready: missing.length === 0, missing };
 }
 
@@ -90,12 +112,21 @@ export class MetaGraphClient {
     this.instagramAccountId = required(config.metaInstagramAccountId, 'META_INSTAGRAM_ACCOUNT_ID', 500);
     this.pageAccessToken = required(config.metaPageAccessToken, 'META_PAGE_ACCESS_TOKEN', 8_192);
     this.instagramAccessToken = required(config.metaInstagramAccessToken, 'META_INSTAGRAM_ACCESS_TOKEN', 8_192);
+    this.allowedChannels = outboundChannels(config.metaOutboundChannels);
     this.timeoutMs = Math.max(1_000, Math.min(120_000, Number(config.metaRequestTimeoutMs || 15_000)));
   }
 
   requestFor(job) {
     const channel = required(jobField(job, 'channel'), 'channel', 40);
     if (!SUPPORTED_CHANNELS.has(channel)) throw new TypeError(`Unsupported Meta channel: ${channel}`);
+    if (!this.allowedChannels.has(channel)) {
+      throw new MetaGraphDispatchError('The Meta outbound channel is not enabled by server policy.', {
+        code: 'META_OUTBOUND_CHANNEL_DISABLED',
+        certainty: 'rejected_before_acceptance',
+        retryable: false,
+        responseMetadata: { channel },
+      });
+    }
     const providerAccountId = required(jobField(job, 'providerAccountId', 'provider_account_id'), 'providerAccountId', 500);
     const providerSenderId = required(jobField(job, 'providerSenderId', 'provider_sender_id'), 'providerSenderId', 500);
     const approvedText = required(jobField(job, 'approvedText', 'approved_text'), 'approvedText', 4_000);
