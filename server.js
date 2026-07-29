@@ -10,6 +10,7 @@ import { TtlCache } from './src/services/cache.js';
 import { createProviderRegistry } from './src/services/provider-registry.js';
 import { LightOcrService } from './src/ocr-service/lightOcrService.js';
 import { DatabaseRuntime } from './src/db/databaseRuntime.js';
+import { createOwnerSecurityRouter } from './src/owner-security-router.js';
 import { createMetaOwnerRouter } from './src/manebrain/meta-owner-router.js';
 import { createScanPipeline } from './src/services/scan-pipeline.js';
 import { createDurableScanJobRouter } from './src/scan-job-router.js';
@@ -50,6 +51,7 @@ const ocrService = new LightOcrService({
   timeoutMs: config.localOcrTimeoutMs,
 });
 const coreRouter = createRouter({ config, cards, sales, providers, store, cache, runtimeValidation, storage, ocrService, databaseRuntime });
+const ownerSecurityRouter = createOwnerSecurityRouter({ config, store });
 const metaOwnerRouter = createMetaOwnerRouter({ config, store, databaseRuntime });
 const scanPipeline = createScanPipeline({ config, cards, sales, store, cache, ocrService, databaseRuntime });
 const scanJobRuntime = await createDurableScanJobRouter({ config, store, processor: scanPipeline });
@@ -65,6 +67,8 @@ if (typeof store.deleteUser === 'function' && typeof scanJobRuntime.spool.delete
 
 const router = async (req, res) => {
   try {
+    const ownerSecurityHandled = await ownerSecurityRouter(req, res);
+    if (ownerSecurityHandled || res.writableEnded) return;
     const metaHandled = await metaOwnerRouter(req, res);
     if (metaHandled || res.writableEnded) return;
     const scanJobHandled = await scanJobRuntime.handle(req, res);
