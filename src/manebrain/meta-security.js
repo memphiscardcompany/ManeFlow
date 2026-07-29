@@ -6,6 +6,15 @@ function equalUtf8(left, right) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+function normalizeRawBody(rawBody) {
+  if (typeof rawBody === 'string') return Buffer.from(rawBody, 'utf8');
+  if (Buffer.isBuffer(rawBody)) return rawBody;
+  if (rawBody instanceof Uint8Array) {
+    return Buffer.from(rawBody.buffer, rawBody.byteOffset, rawBody.byteLength);
+  }
+  throw new TypeError('Meta signature verification requires the exact raw request bytes.');
+}
+
 export function verifyMetaChallenge({ mode, token, challenge }, expectedToken) {
   if (mode !== 'subscribe' || !token || challenge === undefined || challenge === null) {
     return { ok: false, status: 400, error: 'INVALID_VERIFICATION_REQUEST' };
@@ -17,12 +26,16 @@ export function verifyMetaChallenge({ mode, token, challenge }, expectedToken) {
 }
 
 export function signMetaPayload(rawBody, appSecret) {
-  return `sha256=${crypto.createHmac('sha256', String(appSecret)).update(rawBody).digest('hex')}`;
+  return `sha256=${crypto.createHmac('sha256', String(appSecret)).update(normalizeRawBody(rawBody)).digest('hex')}`;
 }
 
 export function verifyMetaSignature(rawBody, signature, appSecret) {
-  if (!appSecret || typeof rawBody !== 'string' || !String(signature).startsWith('sha256=')) return false;
-  return equalUtf8(signMetaPayload(rawBody, appSecret), String(signature));
+  if (!appSecret || typeof signature !== 'string' || !/^sha256=[a-f0-9]{64}$/i.test(signature)) return false;
+  try {
+    return equalUtf8(signMetaPayload(rawBody, appSecret), signature);
+  } catch {
+    return false;
+  }
 }
 
 export function metaReplayKey({ providerMessageId, rawEventId, providerAccountId }) {

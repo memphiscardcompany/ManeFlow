@@ -40,7 +40,27 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
     if (!has(config.emailWebhookUrl)) errors.push('MANEFLOW_EMAIL_WEBHOOK_URL is required for production verification and recovery email.');
     if (!has(config.releaseCommitSha) || config.releaseCommitSha === 'unverified') warnings.push('RELEASE_COMMIT_SHA is not verified.');
     if (!has(config.releaseDeployedAt)) warnings.push('RELEASE_DEPLOYED_AT is not set.');
+    if (config.metaIntakeEnabled === true) {
+      if (config.metaKillSwitch === true) errors.push('MANEBRAIN_META_KILL_SWITCH must be false before Meta intake can be enabled.');
+      if (!Array.isArray(config.platformOwnerUserIds) || config.platformOwnerUserIds.length === 0) {
+        errors.push("MANEFLOW_PLATFORM_OWNER_USER_IDS must contain Joshua's verified immutable user ID before Meta intake can be enabled.");
+      }
+      for (const [name, value] of [
+        ['META_APP_SECRET', config.metaAppSecret],
+        ['META_WEBHOOK_VERIFY_TOKEN', config.metaWebhookVerifyToken],
+        ['META_APP_ID', config.metaAppId],
+        ['META_BUSINESS_ID', config.metaBusinessId],
+        ['META_PAGE_ID', config.metaPageId],
+        ['META_INSTAGRAM_ACCOUNT_ID', config.metaInstagramAccountId],
+      ]) {
+        if (!has(value)) errors.push(`${name} is required before Meta intake can be enabled.`);
+      }
+      if (!Array.isArray(config.metaAttachmentAllowedHosts) || config.metaAttachmentAllowedHosts.length === 0) {
+        errors.push('META_ATTACHMENT_ALLOWED_HOSTS must contain exact provider hosts before Meta intake can be enabled.');
+      }
+    }
     if (config.metaOutboundEnabled === true) {
+      if (config.metaIntakeEnabled !== true) errors.push('MANEBRAIN_META_INTAKE_ENABLED must be true before Meta outbound can be enabled.');
       if (config.metaKillSwitch === true) errors.push('MANEBRAIN_META_KILL_SWITCH must be false before Meta outbound can be enabled.');
       if (!Array.isArray(config.platformOwnerUserIds) || config.platformOwnerUserIds.length === 0) {
         errors.push('MANEFLOW_PLATFORM_OWNER_USER_IDS must contain Joshua’s verified immutable user ID before Meta outbound can be enabled.');
@@ -82,6 +102,12 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
       requireAuthentication: config.requireAuthentication,
       requireEmailVerification: config.requireEmailVerification,
       csrfProtection: config.csrfProtection,
+      metaIntakeMode: config.metaIntakeEnabled === true && config.metaKillSwitch === false
+        ? 'enabled'
+        : 'disabled',
+      metaAttachmentAllowedHostCount: Array.isArray(config.metaAttachmentAllowedHosts)
+        ? config.metaAttachmentAllowedHosts.length
+        : 0,
       metaMode: config.metaKillSwitch === true
         ? 'disabled'
         : config.metaOutboundEnabled === true

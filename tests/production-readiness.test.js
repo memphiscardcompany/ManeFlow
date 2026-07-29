@@ -69,8 +69,12 @@ test('production Meta outbound fails closed without owner and exact asset allowl
 
   const configured = {
     ...common,
+    MANEBRAIN_META_INTAKE_ENABLED: 'true',
     MANEBRAIN_META_KILL_SWITCH: 'false',
     MANEFLOW_PLATFORM_OWNER_USER_IDS: '00000000-0000-4000-8000-000000000001',
+    META_APP_SECRET: 'meta-app-secret-value',
+    META_WEBHOOK_VERIFY_TOKEN: 'meta-verify-token-value',
+    META_ATTACHMENT_ALLOWED_HOSTS: 'lookaside.example-meta-cdn.test',
     META_APP_ID: 'app-1',
     META_BUSINESS_ID: 'business-1',
     META_PAGE_ID: 'page-1',
@@ -79,6 +83,41 @@ test('production Meta outbound fails closed without owner and exact asset allowl
   const allowed = validateRuntimeConfig(loadConfig(configured), configured);
   assert.equal(allowed.ok, true, allowed.errors.join('; '));
   assert.equal(allowed.safeConfig.metaMode, 'owner_approval');
+  assert.equal(allowed.safeConfig.metaIntakeMode, 'enabled');
+});
+
+test('production Meta intake fails closed without signature, verification, owner, and asset configuration', () => {
+  const env = {
+    NODE_ENV: 'production',
+    RELEASE_CHANNEL: 'production',
+    PUBLIC_BASE_URL: 'https://mane.example.com',
+    ALLOWED_ORIGINS: 'https://mane.example.com',
+    MANEFLOW_API_TOKEN: 'api-secret-value',
+    MANEFLOW_SERVICE_TOKEN: 'service-secret-value',
+    PROVIDER_WEBHOOK_SECRET: 'webhook-secret-value',
+    MANEFLOW_EMAIL_WEBHOOK_URL: 'https://email.example.com/maneflow',
+    STORAGE_MODE: 'postgres',
+    DATABASE_URL: 'postgresql://maneflow_app:password@db.example.com/maneflow',
+    MANEFLOW_DEMO_MODE: 'false',
+    MANEFLOW_EXPOSE_DEV_TOKENS: 'false',
+    MANEBRAIN_META_INTAKE_ENABLED: 'true',
+  };
+  const blocked = validateRuntimeConfig(loadConfig(env), env);
+  assert.equal(blocked.ok, false);
+  for (const expected of [
+    'META_APP_SECRET',
+    'META_WEBHOOK_VERIFY_TOKEN',
+    'META_APP_ID',
+    'META_BUSINESS_ID',
+    'META_PAGE_ID',
+    'META_INSTAGRAM_ACCOUNT_ID',
+    'META_ATTACHMENT_ALLOWED_HOSTS',
+    'PLATFORM_OWNER',
+    'KILL_SWITCH',
+  ]) {
+    assert.ok(blocked.errors.some((error) => error.includes(expected)), expected);
+  }
+  assert.equal(blocked.safeConfig.metaIntakeMode, 'disabled');
 });
 
 test('json storage adapter initializes local store and postgres mode requires database config', async () => {
