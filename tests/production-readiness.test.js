@@ -65,6 +65,7 @@ test('production Meta outbound fails closed without owner and exact asset allowl
   assert.equal(blocked.ok, false);
   assert.ok(blocked.errors.some((error) => error.includes('PLATFORM_OWNER')));
   assert.ok(blocked.errors.some((error) => error.includes('META_PAGE_ID')));
+  assert.ok(blocked.errors.some((error) => error.includes('META_PAGE_ACCESS_TOKEN')));
   assert.ok(blocked.errors.some((error) => error.includes('KILL_SWITCH')));
 
   const configured = {
@@ -79,11 +80,14 @@ test('production Meta outbound fails closed without owner and exact asset allowl
     META_BUSINESS_ID: 'business-1',
     META_PAGE_ID: 'page-1',
     META_INSTAGRAM_ACCOUNT_ID: 'instagram-1',
+    META_PAGE_ACCESS_TOKEN: 'page-access-token-value',
+    META_INSTAGRAM_ACCESS_TOKEN: 'instagram-access-token-value',
   };
   const allowed = validateRuntimeConfig(loadConfig(configured), configured);
   assert.equal(allowed.ok, true, allowed.errors.join('; '));
   assert.equal(allowed.safeConfig.metaMode, 'owner_approval');
   assert.equal(allowed.safeConfig.metaIntakeMode, 'enabled');
+  assert.equal(JSON.stringify(allowed.safeConfig).includes('access-token-value'), false);
 });
 
 test('production Meta intake fails closed without signature, verification, owner, and asset configuration', () => {
