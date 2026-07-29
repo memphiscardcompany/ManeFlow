@@ -44,6 +44,8 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
     if (config.demoMode === true) warnings.push('MANEFLOW_DEMO_MODE=true; public market-value claims must remain disabled.');
     if (config.exposeDevTokens === true) errors.push('MANEFLOW_EXPOSE_DEV_TOKENS must be false in production.');
     if (config.storageMode !== 'postgres') errors.push('STORAGE_MODE must be postgres in production.');
+    if (!has(config.scanJobDir)) errors.push('MANEFLOW_SCAN_JOB_DIR is required in production.');
+    if (config.scanJobStorageDurable !== true) errors.push('MANEFLOW_SCAN_JOB_STORAGE_DURABLE must be true only after MANEFLOW_SCAN_JOB_DIR is mounted on persistent private storage.');
     if (!has(config.emailWebhookUrl)) errors.push('MANEFLOW_EMAIL_WEBHOOK_URL is required for production verification and recovery email.');
     if (!has(config.releaseCommitSha) || config.releaseCommitSha === 'unverified') warnings.push('RELEASE_COMMIT_SHA is not verified.');
     if (!has(config.releaseDeployedAt)) warnings.push('RELEASE_DEPLOYED_AT is not set.');
@@ -128,6 +130,9 @@ export function validateRuntimeConfig(config = {}, env = process.env) {
       requireAuthentication: config.requireAuthentication,
       requireEmailVerification: config.requireEmailVerification,
       csrfProtection: config.csrfProtection,
+      scanJobStorageDurable: config.scanJobStorageDurable === true,
+      scanJobMaxItems: config.scanJobMaxItems,
+      scanJobConcurrency: config.scanJobConcurrency,
       metaIntakeMode: config.metaIntakeEnabled === true && config.metaKillSwitch === false
         ? 'enabled'
         : 'disabled',

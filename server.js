@@ -11,6 +11,8 @@ import { createProviderRegistry } from './src/services/provider-registry.js';
 import { LightOcrService } from './src/ocr-service/lightOcrService.js';
 import { DatabaseRuntime } from './src/db/databaseRuntime.js';
 import { createMetaOwnerRouter } from './src/manebrain/meta-owner-router.js';
+import { createScanPipeline } from './src/services/scan-pipeline.js';
+import { createDurableScanJobRouter } from './src/scan-job-router.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -49,10 +51,14 @@ const ocrService = new LightOcrService({
 });
 const coreRouter = createRouter({ config, cards, sales, providers, store, cache, runtimeValidation, storage, ocrService, databaseRuntime });
 const metaOwnerRouter = createMetaOwnerRouter({ config, store, databaseRuntime });
+const scanPipeline = createScanPipeline({ config, cards, sales, store, cache, ocrService, databaseRuntime });
+const scanJobRuntime = await createDurableScanJobRouter({ config, store, processor: scanPipeline });
 const router = async (req, res) => {
   try {
-    const handled = await metaOwnerRouter(req, res);
-    if (handled || res.writableEnded) return;
+    const metaHandled = await metaOwnerRouter(req, res);
+    if (metaHandled || res.writableEnded) return;
+    const scanJobHandled = await scanJobRuntime.handle(req, res);
+    if (scanJobHandled || res.writableEnded) return;
     await coreRouter(req, res);
   } catch (error) {
     if (!res.headersSent) {
@@ -73,12 +79,18 @@ server.listen(config.port, config.host, () => {
   console.log(`ManeFlow ${config.version} (${config.releaseChannel})`);
   console.log(`Open ${config.publicBaseUrl}`);
   console.log(`Market mode: ${config.demoMode ? 'DEMO/MIXED — connect approved data before public value claims' : 'PRODUCTION'}`);
+  console.log(`Durable scan jobs: ${config.scanJobDir} · concurrency ${config.scanJobConcurrency}`);
 });
 
 function shutdown(signal) {
   console.log(`\n${signal} received; closing server.`);
   server.close(async () => {
-    await Promise.allSettled([ocrService.close(), databaseRuntime.close(), storage?.close?.()]);
+    await Promise.allSettled([
+      scanJobRuntime.close(),
+      ocrService.close(),
+      databaseRuntime.close(),
+      storage?.close?.(),
+    ]);
     process.exit(0);
   });
   setTimeout(() => process.exit(1), 5_000).unref();
