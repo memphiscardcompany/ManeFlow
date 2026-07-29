@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maneflow.local/contracts/vision-extraction-v1.schema.json",
+  "title": "ManeFlow Vision Extraction Result",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "scan_id",
+    "predicted_card",
+    "identity_confidence",
+    "variant_confidence",
+    "detected_object_count",
+    "pricing_status",
+    "confidence_score",
+    "comps_used",
+    "outliers_removed",
+    "explanation",
+    "warnings",
+    "created_at"
+  ],
+  "properties": {
+    "contract_version": { "const": "vision-extraction.v1" },
+    "scan_id": { "type": "string", "format": "uuid" },
+    "predicted_card": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "card_id": { "type": ["string", "null"], "format": "uuid" },
+        "year": { "type": ["integer", "null"], "minimum": 1800, "maximum": 2200 },
+        "brand": { "type": ["string", "null"], "maxLength": 255 },
+        "set_name": { "type": ["string", "null"], "maxLength": 255 },
+        "insert_name": { "type": ["string", "null"], "maxLength": 255 },
+        "player_name": { "type": ["string", "null"], "maxLength": 255 },
+        "team": { "type": ["string", "null"], "maxLength": 255 },
+        "sport": { "type": ["string", "null"], "maxLength": 100 },
+        "card_number": { "type": ["string", "null"], "maxLength": 100 },
+        "parallel": { "type": ["string", "null"], "maxLength": 255 },
+        "serial_number": { "type": ["string", "null"], "maxLength": 100 },
+        "rookie": { "type": ["boolean", "null"] },
+        "autograph": { "type": ["boolean", "null"] },
+        "memorabilia": { "type": ["boolean", "null"] },
+        "language": { "type": ["string", "null"], "maxLength": 30 },
+        "grader": { "type": ["string", "null"], "maxLength": 30 },
+        "grade": { "type": ["string", "null"], "maxLength": 30 },
+        "cert_number": { "type": ["string", "null"], "maxLength": 100 }
+      }
+    },
+    "identity_confidence": { "$ref": "#/$defs/confidence" },
+    "variant_confidence": { "$ref": "#/$defs/confidence" },
+    "selected_detection_confidence": { "$ref": "#/$defs/confidence" },
+    "detected_object_count": { "type": "integer", "minimum": 0 },
+    "quality": {
+      "type": ["object", "null"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "blur_score": { "type": "number" },
+        "glare_fraction": { "$ref": "#/$defs/confidence" },
+        "brightness": { "type": "number", "minimum": 0, "maximum": 255 },
+        "quality_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "warnings": { "$ref": "#/$defs/stringArray" }
+      },
+      "required": ["width", "height", "blur_score", "glare_fraction", "brightness", "quality_score", "warnings"],
+      "additionalProperties": false
+    },
+    "visible_text": { "$ref": "#/$defs/stringArray" },
+    "barcode_values": { "$ref": "#/$defs/stringArray" },
+    "warnings": { "$ref": "#/$defs/stringArray" },
+    "detected_surface_type": {
+      "type": ["string", "null"],
+      "enum": [null, "BASE", "SILVER_HOLOFRACTOR", "GOLD_REFRACTOR", "CRACKED_ICE", "MOJO", "WAVE"]
+    },
+    "refractor_confidence": { "$ref": "#/$defs/confidence" },
+    "surface_analysis": { "type": ["object", "null"] },
+    "centering_assessment": { "type": ["object", "null"] },
+    "visual_embedding": {
+      "type": ["object", "null"],
+      "required": ["vector", "model_name", "provider", "dimensions", "normalized"],
+      "properties": {
+        "vector": {
+          "type": "array",
+          "minItems": 1152,
+          "maxItems": 1152,
+          "items": { "type": "number" }
+        },
+        "model_name": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "dimensions": { "const": 1152 },
+        "normalized": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "pricing_status": { "enum": ["verified", "price_unverifiable", "insufficient_comps"] },
+    "value_low": { "$ref": "#/$defs/nullableMoney" },
+    "value_mid": { "$ref": "#/$defs/nullableMoney" },
+    "value_high": { "$ref": "#/$defs/nullableMoney" },
+    "confidence_score": { "$ref": "#/$defs/confidence" },
+    "recommended_cash_offer_low": { "$ref": "#/$defs/nullableMoney" },
+    "recommended_cash_offer_high": { "$ref": "#/$defs/nullableMoney" },
+    "recommended_list_price": { "$ref": "#/$defs/nullableMoney" },
+    "comps_used": { "type": "integer", "minimum": 0 },
+    "outliers_removed": { "type": "integer", "minimum": 0 },
+    "explanation": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "nullableMoney": { "type": ["number", "string", "null"] },
+    "stringArray": { "type": "array", "items": { "type": "string" }, "maxItems": 500 }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,287 @@
+openapi: 3.1.0
+info:
+  title: ManeFlow API
+  version: 2.22.0-beta.1
+  description: ManeFlow production-foundation beta APIs for card intelligence, PostgreSQL/pgvector retrieval, local OCR, vision-worker integration, Ricoh bulk intake, consented recognition learning, verified-comp valuation, collection intelligence, and merchant workflows.
+servers:
+  - url: https://mane.memphiscardcompany.com
+  - url: http://127.0.0.1:4321
+paths:
+  /healthz:
+    get: { summary: Process liveness, responses: { '200': { description: Alive } } }
+  /readyz:
+    get: { summary: Runtime readiness, storage health, and market-data safety, responses: { '200': { description: Ready }, '503': { description: Not ready } } }
+  /api/health:
+    get: { summary: Service liveness and release mode, responses: { '200': { description: Healthy } } }
+  /api/internal/visual-search:
+    post: { summary: Service-authenticated pgvector candidate retrieval, responses: { '200': { description: Visual candidates }, '401': { description: Service token required }, '503': { description: Vector runtime unavailable } } }
+  /api/internal/catalog/cards/upsert:
+    post: { summary: Service-authenticated canonical catalog upsert, responses: { '200': { description: Catalog records stored }, '401': { description: Service token required }, '503': { description: Catalog repository unavailable } } }
+  /api/internal/catalog/embeddings/upsert:
+    post: { summary: Service-authenticated 1152-D embedding upsert, responses: { '200': { description: Embeddings stored }, '401': { description: Service token required }, '503': { description: Embedding repository unavailable } } }
+  /api/internal/card-pricing:
+    post: { summary: Service-authenticated verified-comp valuation bridge, responses: { '200': { description: Safe pricing response }, '401': { description: Service token required } } }
+  /api/config:
+    get: { summary: Safe public client configuration, responses: { '200': { description: Configuration } } }
+  /api/plans:
+    get: { summary: Product plans and enforced entitlements, responses: { '200': { description: Plans } } }
+  /api/billing/summary:
+    get: { summary: Current billing entitlement and usage summary, responses: { '200': { description: Billing summary } } }
+  /api/billing/stripe/webhook:
+    post: { summary: Stripe webhook with signature verification, responses: { '202': { description: Received or ignored }, '403': { description: Invalid signature } } }
+  /api/auth/register:
+    post:
+      summary: Create an account and queue email verification
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AuthRequest' } } } }
+      responses: { '201': { description: Account created }, '400': { description: Invalid request } }
+  /api/auth/login:
+    post:
+      summary: Create a web or native session
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AuthRequest' } } } }
+      responses: { '200': { description: Authenticated }, '401': { description: Invalid credentials }, '403': { description: Account disabled or unverified } }
+  /api/auth/logout:
+    post: { summary: Revoke the current session, responses: { '200': { description: Logged out } } }
+  /api/auth/me:
+    get: { summary: Current account and entitlements, responses: { '200': { description: Account state } } }
+  /api/auth/request-verification:
+    post: { summary: Queue a new verification message, responses: { '202': { description: Queued } } }
+  /api/auth/verify-email:
+    post: { summary: Verify email with a single-use token, responses: { '200': { description: Verified }, '400': { description: Invalid or expired token } } }
+  /api/auth/forgot-password:
+    post: { summary: Queue password-recovery instructions without account enumeration, responses: { '202': { description: Queued } } }
+  /api/auth/reset-password:
+    post: { summary: Reset password with a single-use token, responses: { '200': { description: Password reset } } }
+  /api/auth/change-password:
+    post: { summary: Change the authenticated user's password and revoke sessions, responses: { '200': { description: Changed } } }
+  /api/auth/sessions:
+    get: { summary: List signed-in devices, responses: { '200': { description: Sessions } } }
+  /api/auth/sessions/{sessionId}:
+    delete:
+      summary: Revoke one signed-in device
+      parameters: [ { in: path, name: sessionId, required: true, schema: { type: string } } ]
+      responses: { '200': { description: Revoked } }
+  /api/auth/export:
+    get: { summary: Export all account data, responses: { '200': { description: Account export } } }
+  /api/auth/account:
+    patch: { summary: Update profile, responses: { '200': { description: Updated } } }
+    delete: { summary: Permanently delete account and private Vault data, responses: { '200': { description: Deleted } } }
+  /api/cards:
+    get:
+      summary: Search the card catalog
+      parameters:
+        - { in: query, name: q, schema: { type: string } }
+        - { in: query, name: sport, schema: { type: string } }
+        - { in: query, name: grader, schema: { type: string } }
+        - { in: query, name: year, schema: { type: string } }
+      responses: { '200': { description: Ranked cards } }
+  /api/catalog/autocomplete:
+    get:
+      summary: Suggest loaded catalog fields and likely cards for manual entry
+      parameters:
+        - { in: query, name: q, schema: { type: string } }
+        - { in: query, name: sport, schema: { type: string } }
+        - { in: query, name: year, schema: { type: string } }
+        - { in: query, name: brand, schema: { type: string } }
+        - { in: query, name: set, schema: { type: string } }
+        - { in: query, name: cardNumber, schema: { type: string } }
+        - { in: query, name: player, schema: { type: string } }
+        - { in: query, name: parallel, schema: { type: string } }
+        - { in: query, name: limit, schema: { type: integer, default: 12 } }
+      responses: { '200': { description: Public-safe catalog suggestions and likely cards } }
+  /api/catalog/smart-autocomplete:
+    get:
+      summary: Smart card lookup for inventory and collection logging
+      parameters:
+        - { in: query, name: q, schema: { type: string } }
+        - { in: query, name: sport, schema: { type: string } }
+        - { in: query, name: year, schema: { type: string } }
+        - { in: query, name: brand, schema: { type: string } }
+        - { in: query, name: set, schema: { type: string } }
+        - { in: query, name: cardNumber, schema: { type: string } }
+        - { in: query, name: player, schema: { type: string } }
+        - { in: query, name: parallel, schema: { type: string } }
+        - { in: query, name: limit, schema: { type: integer, default: 10 } }
+      responses: { '200': { description: Ranked pickable catalog candidates with autofill payloads } }
+  /api/catalog/complete:
+    post:
+      summary: Complete manual card fields into a matched catalog card when loaded
+      responses: { '200': { description: Autopopulate payload or safe unmatched-card payload } }
+  /api/catalog/sets:
+    get:
+      summary: Loaded catalog set coverage for owner-imported and bundled catalog rows
+      responses: { '200': { description: Set coverage and autocomplete disclaimer } }
+  /api/catalog/coverage:
+    get:
+      summary: Loaded sports and TCG catalog coverage by sport, game, year, set depth, and image readiness
+      responses: { '200': { description: Catalog and image coverage } }
+  /api/card-images/sources:
+    get:
+      summary: Public-safe card image source registry and rights policy
+      responses: { '200': { description: Image sources } }
+  /api/card-images/coverage:
+    get:
+      summary: Public-safe card image coverage report
+      responses: { '200': { description: Image coverage } }
+  /api/cards/{cardId}/market:
+    get:
+      summary: Plan-limited completed-sale valuation, comp evidence, and optional active BIN asking context
+      parameters:
+        - { in: path, name: cardId, required: true, schema: { type: string } }
+        - { in: query, name: window, schema: { type: string, default: 90d } }
+        - { in: query, name: active, schema: { type: integer, enum: [0,1] } }
+      responses: { '200': { description: Market detail }, '404': { description: Card not found } }
+  /api/scan:
+    post:
+      summary: Analyze front/back imagery and rank catalog matches
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                frontDataUrl: { type: string }
+                backDataUrl: { type: string }
+                certDataUrl: { type: string }
+                manualText: { type: string }
+                certText: { type: string }
+                barcodeText: { type: string }
+                qrText: { type: string }
+                imageName: { type: string }
+      responses: { '200': { description: Candidate matches }, '402': { description: Plan limit reached } }
+  /api/cert/extract:
+    post:
+      summary: Extract graded-card cert evidence from slab text, barcode/QR payload, or cert-label image
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                certDataUrl: { type: string }
+                certText: { type: string }
+                barcodeText: { type: string }
+                qrText: { type: string }
+                manualText: { type: string }
+                imageName: { type: string }
+      responses: { '200': { description: Cert evidence, scan confidence, and likely catalog matches }, '429': { description: Cert extraction rate limit reached } }
+  /api/dashboard:
+    get: { summary: Portfolio, watchlist, alerts, listings, scans, preferences, and entitlements, responses: { '200': { description: Dashboard } } }
+  /api/alerts:
+    get: { summary: Active price alerts, responses: { '200': { description: Alerts } } }
+  /api/alerts/{alertId}:
+    patch:
+      summary: Mark an alert read or resolved
+      parameters: [ { in: path, name: alertId, required: true, schema: { type: string } } ]
+      responses: { '200': { description: Alert updated } }
+  /api/collection:
+    get: { summary: Private collection with current analytics, responses: { '200': { description: Collection } } }
+    post: { summary: Add collection item subject to plan limits, responses: { '201': { description: Item created }, '402': { description: Plan limit reached } } }
+  /api/collection/{itemId}:
+    patch: { summary: Update collection item, responses: { '200': { description: Item updated } } }
+    delete: { summary: Delete collection item, responses: { '200': { description: Item removed } } }
+  /api/watchlist:
+    post: { summary: Create or update a card watch, responses: { '201': { description: Watch saved } } }
+  /api/listings:
+    get: { summary: Listing drafts, responses: { '200': { description: Listings } } }
+    post: { summary: Create listing draft, responses: { '201': { description: Draft created } } }
+  /api/import/collection-csv:
+    post: { summary: Import collection CSV with smart matching and plan enforcement, responses: { '200': { description: Import summary } } }
+  /api/import/catalog-csv:
+    post: { summary: Import user-authorized catalog CSV, responses: { '200': { description: Import summary } } }
+  /api/import/sales-csv:
+    post: { summary: Import user-authorized completed-sale CSV and evaluate alerts, responses: { '200': { description: Import summary } } }
+  /api/admin/status:
+    get: { summary: Owner operational status, security: [ { bearerAuth: [] } ], responses: { '200': { description: Status } } }
+  /api/admin/system/health:
+    get: { summary: Redacted administrator system health, security: [ { bearerAuth: [] } ], responses: { '200': { description: System health } } }
+  /api/admin/card-images:
+    get: { summary: Admin image source coverage, overrides, and audit log, security: [ { bearerAuth: [] } ], responses: { '200': { description: Image operations } } }
+  /api/admin/card-images/enrich:
+    post: { summary: Dry-run or import rights-approved card image enrichment rows, security: [ { bearerAuth: [] } ], responses: { '200': { description: Image enrichment result } } }
+  /api/admin/card-images/rollback:
+    post: { summary: Roll back an image enrichment batch by provider batch ID, security: [ { bearerAuth: [] } ], responses: { '200': { description: Rollback complete } } }
+  /api/admin/recognition-benchmarks:
+    get: { summary: List recognition benchmark runs and eligible or blocked source policies, security: [ { bearerAuth: [] } ], responses: { '200': { description: Recognition benchmark history } } }
+  /api/admin/recognition-benchmarks/run:
+    post: { summary: Run an internal recognition benchmark from lawful JSON/CSV label data, security: [ { bearerAuth: [] } ], responses: { '200': { description: Benchmark report }, '409': { description: Source blocked by data-rights policy } } }
+  /api/admin/pricing-data/rollback:
+    post: { summary: Roll back an imported pricing batch by provider run or batch ID, security: [ { bearerAuth: [] } ], responses: { '200': { description: Rollback complete } } }
+  /api/admin/data-health:
+    get: { summary: Valuation data health and public-launch blockers, security: [ { bearerAuth: [] } ], responses: { '200': { description: Data health } } }
+  /api/admin/users:
+    get: { summary: User administration, security: [ { bearerAuth: [] } ], responses: { '200': { description: Users } } }
+  /api/admin/consignments:
+    get: { summary: Consignment-review queue, security: [ { bearerAuth: [] } ], responses: { '200': { description: Queue } } }
+  /api/admin/outbox:
+    get: { summary: Verification and recovery delivery queue, security: [ { bearerAuth: [] } ], responses: { '200': { description: Messages } } }
+  /api/admin/ebay/status:
+    get: { summary: eBay provider status, recent imports, and access mode, security: [ { bearerAuth: [] } ], responses: { '200': { description: eBay status } } }
+  /api/admin/ebay/import-completed:
+    post:
+      summary: Import eBay Marketplace Insights completed sales when approved access is configured
+      security: [ { bearerAuth: [] } ]
+      responses: { '202': { description: eBay completed-sale import accepted }, '400': { description: eBay access missing or request invalid }, '403': { description: Admin required } }
+  /api/admin/ebay/import-seller-orders:
+    post:
+      summary: Import authenticated eBay seller order data
+      security: [ { bearerAuth: [] } ]
+      responses: { '202': { description: Seller-order import accepted }, '400': { description: Seller token missing or request invalid }, '403': { description: Admin required } }
+  /api/admin/provider-ingest:
+    post:
+      summary: Ingest approved provider cards and sales, then evaluate alerts
+      security: [ { bearerAuth: [] }, { hmacSignature: [] } ]
+      responses: { '202': { description: Ingest accepted }, '403': { description: Authorization required } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+    hmacSignature: { type: apiKey, in: header, name: x-maneflow-signature }
+  schemas:
+    AuthRequest:
+      type: object
+      required: [email, password]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 10 }
+        native: { type: boolean }
+
+# v1.6 Market Launch System additions
+# - GET /api/organizations
+# - POST /api/organizations
+# - GET /api/organizations/{id}
+# - POST /api/organizations/{id}/invites
+# - POST /api/organizations/invites/{code}/accept
+# - GET /api/organizations/{id}/dashboard
+# - GET /api/organizations/{id}/inventory
+# - POST /api/organizations/{id}/inventory
+# - PATCH /api/organizations/{id}/inventory/{itemId}
+# - GET /api/cards/{id}/dealer-decision
+# - GET /api/scan-sessions
+# - POST /api/scan-sessions/{id}/confirm
+# - GET /api/intake-batches
+# - POST /api/intake-batches
+# - POST /api/intake-batches/{id}/items
+# - PATCH /api/intake-batches/{id}/status
+# - GET /api/intake-batches/{id}/offer-sheet
+# - GET /api/embed/config
+# - POST /api/embed/scan-intake
+# - POST /api/embed/consignment-intake
+# - GET /api/public/cards/{slug}/value
+# - GET /api/admin/import-jobs
+# - POST /api/admin/import-jobs
+# - POST /api/admin/import-jobs/{id}/runs
+# - GET /api/admin/scan-quality
+# - GET /api/admin/organizations
+
+# v2.5 State-of-the-Art Recognition additions
+# - GET /api/catalog/coverage
+# - GET /api/card-images/sources
+# - GET /api/card-images/coverage
+# - GET /api/admin/card-images
+# - POST /api/admin/card-images/enrich
+# - POST /api/admin/card-images/rollback
+# - GET /api/admin/recognition-benchmarks
+# - POST /api/admin/recognition-benchmarks/run
+# - GET /api/cards/{id}/market?active=1 includes askingPriceContext for BIN context only

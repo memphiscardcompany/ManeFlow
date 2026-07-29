@@ -1,0 +1,157 @@
+{
+  "generatedAt": "2026-07-23T04:54:20.450Z",
+  "rows": [
+    {
+      "file": "08350F93-D658-44AF-81AB-E2D7FA7F0555.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "1CCF5ED5-D69A-4D21-BF52-2FA4A10484A9.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "25886FCB-EA45-4049-9A13-B8FC163F8874.png",
+      "ok": true,
+      "detections": 0,
+      "quality_score": 68,
+      "warnings": [
+        "Some glare is present; tilt the card or diffuse the light.",
+        "Image is too dark."
+      ]
+    },
+    {
+      "file": "27A831A0-D54C-4201-BBDD-7F0516D29B00.jpeg",
+      "ok": true,
+      "detections": 0,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "2EA894EB-FDD9-440D-92F0-B202541EF7F7.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "3FBA11DE-61A0-44AB-B09E-60451A91EFFB.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "4E862F10-C956-4A4B-B931-F39E59017084.jpeg",
+      "ok": true,
+      "detections": 0,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "67C82A79-9279-4FCD-B77D-35DA2554EC9C.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "74F3E422-CC85-42B8-8A19-71C46DC98C18.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "A12FD97A-0774-4794-A56C-BAC3B3D0D362.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 88,
+      "warnings": [
+        "Image is slightly soft; small print may be unreliable."
+      ]
+    },
+    {
+      "file": "B7E3F2A4-6DBA-44DB-A9B5-099A8362AB57.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "BFF3D61D-57F1-4BB4-AC20-FEFAE36D8DB4.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "C5635A81-EFDC-4F21-B979-958DDCF0E57B.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "D95883E2-DB16-4CC5-A171-DDBEA0EE4649.jpeg",
+      "ok": true,
+      "detections": 0,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "F01552E5-C396-4C1D-92EE-423878B981DC.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "IMG_2D288009-2F3A-41A3-86F2-F8F10B96D510.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "IMG_3476(1).jpeg",
+      "ok": true,
+      "detections": 0,
+      "quality_score": 82,
+      "warnings": [
+        "Low resolution may hide card numbers, serials, or parallel details."
+      ]
+    },
+    {
+      "file": "IMG_3584.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 100,
+      "warnings": []
+    },
+    {
+      "file": "IMG_8B6D2CD7-A899-47A6-B116-AF80A7C67D09.jpeg",
+      "ok": true,
+      "detections": 0,
+      "quality_score": 88,
+      "warnings": [
+        "Image is slightly soft; small print may be unreliable."
+      ]
+    },
+    {
+      "file": "Screenshot 2026-06-29 at 4.45.08 AM.jpeg",
+      "ok": true,
+      "detections": 1,
+      "quality_score": 68,
+      "warnings": [
+        "Some glare is present; tilt the card or diffuse the light.",
+        "Image is too dark."
+      ]
+    }
+  ]
+}

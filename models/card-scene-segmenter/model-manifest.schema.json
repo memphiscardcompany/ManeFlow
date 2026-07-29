@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maneflow.local/schemas/card-scene-segmenter-manifest.json",
+  "title": "ManeFlow Card Scene Segmenter Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model_name",
+    "model_version",
+    "dataset_version",
+    "task",
+    "classes",
+    "input",
+    "metrics",
+    "license",
+    "deployment"
+  ],
+  "properties": {
+    "model_name": {"type": "string", "minLength": 1},
+    "model_version": {"type": "string", "minLength": 1},
+    "dataset_version": {"type": "string", "minLength": 1},
+    "task": {"const": "instance-segmentation"},
+    "classes": {
+      "type": "array",
+      "minItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["raw_card", "graded_slab", "toploader", "one_touch", "sealed_pack", "card_stack"]
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "color_space"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 320},
+        "height": {"type": "integer", "minimum": 320},
+        "color_space": {"enum": ["RGB", "BGR"]},
+        "letterbox": {"type": "boolean"}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["test_images", "precision", "recall", "map50", "map50_95", "negative_false_positive_rate"],
+      "properties": {
+        "test_images": {"type": "integer", "minimum": 1},
+        "precision": {"type": "number", "minimum": 0, "maximum": 1},
+        "recall": {"type": "number", "minimum": 0, "maximum": 1},
+        "map50": {"type": "number", "minimum": 0, "maximum": 1},
+        "map50_95": {"type": "number", "minimum": 0, "maximum": 1},
+        "negative_false_positive_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "dense_scene_recall": {"type": "number", "minimum": 0, "maximum": 1},
+        "ricoh_recall": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "commercial_use_allowed", "source_url"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "commercial_use_allowed": {"type": "boolean"},
+        "source_url": {"type": "string", "format": "uri"}
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model_endpoint"],
+      "properties": {
+        "provider": {"enum": ["roboflow-hosted", "roboflow-inference", "onnx-local", "tensorrt-local"]},
+        "model_endpoint": {"type": ["string", "null"]},
+        "artifact_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"}
+      }
+    }
+  }
+}

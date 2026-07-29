@@ -1,0 +1,38 @@
+ManeFlow 2.22.0-beta.1 — Ready-to-Install Windows Beta
+
+FASTEST INSTALL
+1. Right-click the ZIP and choose Extract All.
+2. Double-click Install-ManeFlow.cmd.
+3. Keep the installer window open while first-time dependencies install.
+4. ManeFlow creates Desktop and Start Menu shortcuts and opens as an app window.
+5. In ManeFlow, open Scan and upload your own image or one from:
+   sample-images\user-uploaded-card-tests
+
+YOUR PSA KEY
+- The installer automatically looks for an existing private .env in:
+  • this extracted ManeFlow folder
+  • a previous ManeFlow installation
+  • ManeFlow folders under Downloads, Documents, or Desktop
+- It imports PSA_API_KEY or the legacy PSA_API_TOKEN name.
+- If no private .env is found, it creates one from .env.example.
+- Never post or upload the real .env publicly.
+
+PSA TEST
+- In the browser/local build, use the cert-verification workflow with a known PSA cert.
+- In the optional native desktop build, open Settings → Connected data services,
+  then use Test PSA connection.
+
+OPTIONAL NATIVE WINDOWS EXE
+After the normal installation works, double-click:
+Build-Native-ManeFlow-Installer.cmd
+
+That script builds the native Electron NSIS installer and portable EXE on your PC,
+then opens the installer. Building it requires internet access and can take several minutes.
+
+FIRST INSTALL REQUIREMENTS
+- Windows 10/11 x64
+- Internet connection for Node/Python packages
+- Windows App Installer / winget when Node.js or Python is missing
+
+UNINSTALL
+Use Start Menu → Uninstall ManeFlow. Local card data is preserved by default.

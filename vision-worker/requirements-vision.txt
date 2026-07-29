@@ -1,0 +1,4 @@
+-r requirements.txt
+# Optional learned object detection / instance segmentation runtime.
+# Supply your own trained ManeFlow card/container weights via CARD_DETECTOR_MODEL_PATH.
+ultralytics>=8.3,<9

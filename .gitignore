@@ -1,0 +1,14 @@
+.env
+.runtime/
+.venv-vision/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+node_modules/
+.DS_Store
+*.log
+apps/mobile-expo/.expo/
+apps/mobile-expo/dist/
+backups/
+*.before-restore-*
+config/external-release-gates.json

@@ -1,0 +1,12 @@
+Multi-card photo detection and independent crop review
+Single-card front and back image intake
+Bulk JPG, PNG, and WebP import
+Ricoh and duplex front/back file pairing
+Evidence-based Exact, Likely, and Unresolved matches
+Support for current releases, including 2026 cards
+Authorized PSA certification verification
+Private collection vault and review queue
+Grading and service-request tracking
+Card-shop operations and merchant workspace
+Permissioned correction learning with private pricing excluded
+Pricing safeguards and sold-listing research links

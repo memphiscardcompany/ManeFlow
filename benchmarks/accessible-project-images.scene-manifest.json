@@ -1,0 +1,409 @@
+{
+  "version": 1,
+  "name": "ManeFlow Accessible Project Images Scene Benchmark",
+  "scope": "Scene-level card-content presence only. This does not measure exact identity, variant, or object-count accuracy.",
+  "items": [
+    {
+      "path": "kronozio/StartEN.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/StartFR.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/box.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/boxes.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/ebaycategcode.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/editcards.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/editcardszoom.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/flatbed.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/flatbedcards1.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/flatbedcards2.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/kz_banner_01.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_02.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_03.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_04.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_05.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_06.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_07.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_08.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_09.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_10.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_11.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_12.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_13.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_14.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/kz_banner_15.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/location.png",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/mappings.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/onecard.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/photoborder.png",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/photophoto.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/photoset1.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/photoset2.jpg",
+      "contains_card_content": true,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio help/sample asset containing visible card content."
+    },
+    {
+      "path": "kronozio/scan.png",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "kronozio/seeonkronozio.jpg",
+      "contains_card_content": false,
+      "group": "kronozio_reference_assets",
+      "notes": "Kronozio UI, storage, banner, or background negative."
+    },
+    {
+      "path": "top/08350F93-D658-44AF-81AB-E2D7FA7F0555.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/1CCF5ED5-D69A-4D21-BF52-2FA4A10484A9.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/25886FCB-EA45-4049-9A13-B8FC163F8874.png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/27A831A0-D54C-4201-BBDD-7F0516D29B00.jpeg",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/2EA894EB-FDD9-440D-92F0-B202541EF7F7.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/3FBA11DE-61A0-44AB-B09E-60451A91EFFB.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/4E862F10-C956-4A4B-B931-F39E59017084.jpeg",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/67C82A79-9279-4FCD-B77D-35DA2554EC9C.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/74F3E422-CC85-42B8-8A19-71C46DC98C18.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/A12FD97A-0774-4794-A56C-BAC3B3D0D362.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/B7E3F2A4-6DBA-44DB-A9B5-099A8362AB57.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/BFF3D61D-57F1-4BB4-AC20-FEFAE36D8DB4.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/C5635A81-EFDC-4F21-B979-958DDCF0E57B.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/D95883E2-DB16-4CC5-A171-DDBEA0EE4649.jpeg",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/F01552E5-C396-4C1D-92EE-423878B981DC.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/IMG_2388D36B-4600-458A-9FE5-D719C4EB671A.jpeg",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/IMG_2D288009-2F3A-41A3-86F2-F8F10B96D510.jpeg",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/IMG_32A02127-646D-48BD-8028-53B4F79585FB.jpeg",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/IMG_3476(1).jpeg",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/IMG_3584.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/IMG_8B6D2CD7-A899-47A6-B116-AF80A7C67D09.jpeg",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/Screenshot 2026-06-29 at 4.45.08\u202fAM.jpeg",
+      "contains_card_content": true,
+      "group": "uploaded_project_images",
+      "notes": "User/project image with visible card, slab, pack, or card image."
+    },
+    {
+      "path": "top/image(1).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image(10).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image(2).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image(3).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image(4).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image(5).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image(6).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image(7).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image(8).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image(9).png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    },
+    {
+      "path": "top/image.png",
+      "contains_card_content": false,
+      "group": "uploaded_project_images",
+      "notes": "User/project negative scene or software screenshot without a card target."
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+# Install after requirements.txt on GPU workstations or cloud inference hosts.
+# Select only one ONNX Runtime package for the target platform.
+onnxruntime-gpu>=1.22,<2
+ultralytics>=8.3,<9

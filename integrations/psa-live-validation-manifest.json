@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "provider": "psa",
+  "authEnvironmentVariable": "PSA_API_TOKEN",
+  "endpointTemplate": "https://api.psacard.com/publicapi/cert/GetByCertNumber/{certNumber}",
+  "fixtures": [
+    {
+      "certNumber": "157674135",
+      "image": "sample-data/live-psa/157674135-front.jpeg",
+      "expected": {
+        "year": "2023",
+        "subjectIncludes": ["SHOHEI", "OHTANI"],
+        "descriptionIncludes": ["DARRIN", "PEPE", "SKETCH"],
+        "grade": "10"
+      }
+    },
+    {
+      "certNumber": "157674112",
+      "image": "sample-data/live-psa/157674112-front.jpeg",
+      "expected": {
+        "year": "2019",
+        "subjectIncludes": ["SHOHEI", "OHTANI"],
+        "descriptionIncludes": ["FIREWORKS"],
+        "cardNumberIncludes": ["F15"],
+        "grade": "10"
+      }
+    },
+    {
+      "certNumber": "157674064",
+      "image": "sample-data/live-psa/157674064-front.jpeg",
+      "expected": {
+        "year": "1985",
+        "subjectIncludes": ["KIRBY", "PUCKETT"],
+        "cardNumberIncludes": ["536"],
+        "grade": "8"
+      }
+    }
+  ]
+}

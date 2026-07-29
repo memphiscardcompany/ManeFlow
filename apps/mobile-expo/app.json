@@ -1,0 +1,91 @@
+{
+  "expo": {
+    "name": "ManeFlow",
+    "slug": "maneflow-card-intelligence",
+    "version": "2.22.0",
+    "description": "ManeFlow identifies single cards and mixed card lots, compares lot value to asking price, manages collections, tracks grading, and supports high-volume card intake.",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "maneflow",
+    "newArchEnabled": true,
+    "privacy": "unlisted",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#080b10"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.memphiscardcompany.maneflow",
+      "buildNumber": "16",
+      "infoPlist": {
+        "NSCameraUsageDescription": "ManeFlow uses the camera only when you choose to scan a trading card, slab label, barcode, or cert.",
+        "NSPhotoLibraryUsageDescription": "ManeFlow uses only the card or cert photos you choose for identification and inventory workflows.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.memphiscardcompany.maneflow",
+      "versionCode": 18,
+      "permissions": [
+        "CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#080b10"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow ManeFlow to scan trading cards you place in view."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow ManeFlow to use only the card photos you select."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Allow ManeFlow to access your secure session."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 26
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "extra": {
+      "apiBaseUrl": "https://mane.memphiscardcompany.com",
+      "stagingApiBaseUrl": "https://staging-mane.memphiscardcompany.com",
+      "localApiBaseUrl": "http://127.0.0.1:4321"
+    }
+  }
+}

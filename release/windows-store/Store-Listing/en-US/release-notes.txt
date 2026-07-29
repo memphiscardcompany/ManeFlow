@@ -1,0 +1,1 @@
+Initial Microsoft Store release candidate. Adds evidence-first card recognition, multi-card spread separation, current-year support through 2026, optional deep accuracy audits, image-quality checks, independent crop correction, PSA rate-limit handling, duplex scanner pairing, and strict pricing verification gates.

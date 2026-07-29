@@ -1,0 +1,5 @@
+Add this once in the frontend entry point after rendering:
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}

@@ -1,0 +1,72 @@
+import http from 'node:http';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loadConfig } from './src/config.js';
+import { assertRuntimeConfig } from './src/services/config-runtime.js';
+import { createRouter } from './src/router.js';
+import { createStorageAdapter } from './src/services/storage/index.js';
+import { TtlCache } from './src/services/cache.js';
+import { createProviderRegistry } from './src/services/provider-registry.js';
+import { LightOcrService } from './src/ocr-service/lightOcrService.js';
+import { DatabaseRuntime } from './src/db/databaseRuntime.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+try {
+  process.loadEnvFile?.(path.join(__dirname, '.env'));
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+}
+const config = loadConfig();
+const runtimeValidation = assertRuntimeConfig(config);
+async function readJsonArrayIfPresent(filePath) {
+  try {
+    const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+const baseCards = JSON.parse(await fs.readFile(path.join(__dirname, 'src/data/cards.json'), 'utf8'));
+const ownedChecklistCards = await readJsonArrayIfPresent(path.join(__dirname, 'src/data/cards.memphis-owned.json'));
+const tcgCatalogCards = await readJsonArrayIfPresent(path.join(__dirname, 'src/data/cards.tcg-imported.json'));
+const cards = [...baseCards, ...ownedChecklistCards, ...tcgCatalogCards];
+const sales = JSON.parse(await fs.readFile(path.join(__dirname, 'src/data/sales.json'), 'utf8'));
+const storage = createStorageAdapter(config);
+const store = await storage.init();
+const cache = new TtlCache();
+const providers = createProviderRegistry(config, sales);
+const databaseRuntime = new DatabaseRuntime(config);
+if (databaseRuntime.configured) await databaseRuntime.initialize();
+
+const ocrService = new LightOcrService({
+  enabled: config.localOcrEnabled,
+  provider: config.localOcrProvider,
+  queueCapacity: config.localOcrQueueCapacity,
+  timeoutMs: config.localOcrTimeoutMs,
+});
+const router = createRouter({ config, cards, sales, providers, store, cache, runtimeValidation, storage, ocrService, databaseRuntime });
+const server = http.createServer(router);
+
+server.requestTimeout = 30_000;
+server.headersTimeout = 35_000;
+server.keepAliveTimeout = 5_000;
+server.maxHeadersCount = 100;
+
+server.listen(config.port, config.host, () => {
+  console.log(`ManeFlow ${config.version} (${config.releaseChannel})`);
+  console.log(`Open ${config.publicBaseUrl}`);
+  console.log(`Market mode: ${config.demoMode ? 'DEMO/MIXED — connect approved data before public value claims' : 'PRODUCTION'}`);
+});
+
+function shutdown(signal) {
+  console.log(`\n${signal} received; closing server.`);
+  server.close(async () => {
+    await Promise.allSettled([ocrService.close(), databaseRuntime.close(), storage?.close?.()]);
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 5_000).unref();
+}
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

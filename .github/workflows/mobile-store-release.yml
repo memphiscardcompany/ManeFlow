@@ -1,0 +1,63 @@
+name: Build ManeFlow iOS and Android Store Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      submit_after_build:
+        description: Submit the latest successful production builds to App Store Connect and Google Play
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-build-mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/mobile-expo/package-lock.json
+
+      - name: Require Expo access token
+        run: test -n "$EXPO_TOKEN" || (echo "EXPO_TOKEN is not configured" && exit 1)
+
+      - name: Install core dependencies
+        run: npm install --omit=optional --no-audit --no-fund
+
+      - name: Verify ManeFlow release contracts
+        run: |
+          npm run check
+          npm run security:scan
+          npm test
+          npm run mobile:check
+          npm run store:check
+
+      - name: Install mobile dependencies
+        working-directory: apps/mobile-expo
+        run: npm ci --no-audit --no-fund
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli@16
+
+      - name: Verify Expo account
+        run: eas whoami
+
+      - name: Build signed iOS and Android production artifacts
+        working-directory: apps/mobile-expo
+        run: eas build --platform all --profile production --non-interactive --wait
+
+      - name: Submit latest production builds
+        if: ${{ inputs.submit_after_build }}
+        working-directory: apps/mobile-expo
+        run: |
+          eas submit --platform ios --profile production --latest --non-interactive
+          eas submit --platform android --profile production --latest --non-interactive
