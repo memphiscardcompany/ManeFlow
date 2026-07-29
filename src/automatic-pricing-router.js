@@ -92,9 +92,17 @@ export function createAutomaticPricingRouter({
   cache,
   pricingEngine,
   catalog,
+  salesForCard,
 } = {}) {
-  if (!config || !store || !cache || !pricingEngine || typeof catalog !== 'function') {
-    throw new TypeError('Automatic pricing router requires config, store, cache, pricingEngine, and catalog.');
+  if (
+    !config
+    || !store
+    || !cache
+    || !pricingEngine
+    || typeof catalog !== 'function'
+    || typeof salesForCard !== 'function'
+  ) {
+    throw new TypeError('Automatic pricing router requires config, store, cache, pricingEngine, catalog, and salesForCard.');
   }
 
   function matchCard(cardId) {
@@ -111,8 +119,9 @@ export function createAutomaticPricingRouter({
     const method = String(req.method || 'GET').toUpperCase();
     const scanConfirm = /^\/api\/scan-sessions\/([^/]+)\/confirm$/.exec(url.pathname);
     const cardPricing = /^\/api\/pricing\/cards\/([^/]+)$/.exec(url.pathname);
+    const cardMarket = /^\/api\/cards\/([^/]+)\/market$/.exec(url.pathname);
     const collectionCreate = url.pathname === '/api/collection' && method === 'POST';
-    if (!scanConfirm && !cardPricing && !collectionCreate) return false;
+    if (!scanConfirm && !cardPricing && !cardMarket && !collectionCreate) return false;
 
     res.setHeader('cache-control', 'no-store');
     const actor = actorFromRequest(req, config, store);
@@ -129,17 +138,34 @@ export function createAutomaticPricingRouter({
     }
 
     try {
-      if (cardPricing && method === 'GET') {
-        const card = matchCard(decodeURIComponent(cardPricing[1]));
+      if ((cardPricing || cardMarket) && method === 'GET') {
+        const rawId = cardPricing?.[1] || cardMarket?.[1];
+        const card = matchCard(decodeURIComponent(rawId));
         if (!card) {
           json(res, 404, { error: 'CARD_NOT_FOUND' });
           return true;
         }
         const pricing = await pricingEngine.priceCard(card, {
           actor,
-          reason: 'authenticated_card_pricing_read',
+          reason: cardMarket ? 'card_market_screen' : 'authenticated_card_pricing_read',
         });
-        json(res, 200, { pricing });
+        if (cardMarket) {
+          const sales = salesForCard(card);
+          json(res, 200, {
+            card,
+            valuation: pricing.valuation,
+            sales,
+            marketMode: pricing.marketMode,
+            pricingStatus: pricing.status,
+            automaticPricing: pricing,
+            activeListingError: pricing.askingPriceContext?.error || null,
+            message: pricing.valuation?.value == null
+              ? 'ManeFlow could not calculate a supported current value from the available completed-sale evidence.'
+              : 'ManeFlow calculated this value automatically from authorized completed-sale evidence.',
+          });
+        } else {
+          json(res, 200, { pricing });
+        }
         return true;
       }
 
