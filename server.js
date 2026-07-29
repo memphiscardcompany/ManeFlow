@@ -126,6 +126,7 @@ const automaticPricingRouter = createAutomaticPricingRouter({
   cache,
   pricingEngine: automaticPricingEngine,
   catalog,
+  salesForCard,
 });
 
 if (typeof store.deleteUser === 'function' && typeof scanJobRuntime.spool.deleteOwnerJobs === 'function') {
