@@ -41,10 +41,24 @@ function pageMessage(overrides = {}) {
   };
 }
 
+function pageEcho() {
+  return pageMessage({
+    sender: { id: 'page-1' },
+    recipient: { id: 'sender-1' },
+    message: {
+      mid: 'mid.sent.1',
+      text: 'Owner-approved reply',
+      is_echo: true,
+    },
+  });
+}
+
 test('Meta normalization preserves provider identity and never invents missing IDs or time', () => {
   const normalized = normalizeMetaWebhook(pageMessage());
   assert.equal(normalized.events.length, 1);
   assert.equal(normalized.events[0].channel, 'messenger');
+  assert.equal(normalized.events[0].direction, 'inbound');
+  assert.equal(normalized.events[0].isEcho, false);
   assert.equal(normalized.events[0].providerEventId, 'mid.1');
   assert.equal(normalized.events[0].providerAccountId, 'page-1');
   assert.equal(normalized.events[0].attachments[0].type, 'image');
@@ -56,6 +70,19 @@ test('Meta normalization preserves provider identity and never invents missing I
   const rejected = normalizeMetaWebhook(missingIdentity);
   assert.equal(rejected.events.length, 0);
   assert.equal(rejected.ignored[0].reason, 'UNSTABLE_MESSAGE_IDENTITY');
+});
+
+test('Meta normalization preserves signed provider echoes as outbound evidence', () => {
+  const normalized = normalizeMetaWebhook(pageEcho());
+  assert.equal(normalized.events.length, 1);
+  const event = normalized.events[0];
+  assert.equal(event.channel, 'messenger');
+  assert.equal(event.direction, 'outbound');
+  assert.equal(event.isEcho, true);
+  assert.equal(event.providerAccountId, 'page-1');
+  assert.equal(event.providerSenderId, 'sender-1');
+  assert.equal(event.providerConversationId, 'messenger:page-1:sender-1');
+  assert.equal(event.providerMessageId, 'mid.sent.1');
 });
 
 test('Meta intake verifies exact raw bytes before parsing and persists only allowlisted fresh events', async () => {
@@ -93,6 +120,35 @@ test('Meta intake verifies exact raw bytes before parsing and persists only allo
   });
   assert.equal(invalidSignature.status, 401);
   assert.equal(calls.length, 1);
+});
+
+test('Meta intake reconciles every accepted or duplicate signed provider echo idempotently', async () => {
+  const rawBody = Buffer.from(JSON.stringify(pageEcho()));
+  const calls = [];
+  const repository = {
+    async ingestBatch(owner, input) {
+      calls.push(['ingest', owner, input]);
+      return { accepted: [], duplicates: ['mid.sent.1'] };
+    },
+    async reconcileEchoes(owner, events) {
+      calls.push(['reconcile', owner, events]);
+      return { observed: 1, matchedJobs: 1, updatedMessages: 1 };
+    },
+  };
+  const outcome = await ingestMetaWebhook({
+    rawBody,
+    signature: signMetaPayload(rawBody, config.metaAppSecret),
+    config,
+    repository,
+    ownerUserId,
+    now,
+  });
+  assert.equal(outcome.status, 202);
+  assert.deepEqual(outcome.body, { accepted: 0, duplicates: 1, rejected: 0 });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1][0], 'reconcile');
+  assert.equal(calls[1][1], ownerUserId);
+  assert.equal(calls[1][2][0].isEcho, true);
 });
 
 test('Meta kill switch and asset allowlist fail closed before persistence', async () => {
