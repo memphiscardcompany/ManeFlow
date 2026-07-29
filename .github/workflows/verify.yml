@@ -43,6 +43,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: apps/mobile-expo/package-lock.json
-      - run: npm ci
+      - name: Install native dependencies deterministically
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck
       - run: npm audit --omit=dev --audit-level=high
