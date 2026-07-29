@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from app.core.compute import ComputeDeviceError, select_compute_device
 from app.core.config import settings
 from app.services.imaging.card_detector import CardDetection
 from app.services.imaging.rectify import rectify_quadrilateral
@@ -41,10 +42,20 @@ class LearnedCardDetector:
             from ultralytics import YOLO
         except ImportError as exc:  # pragma: no cover - optional deployment dependency
             raise RuntimeError(
-                "Ultralytics is not installed; install backend/requirements-vision.txt."
+                "Ultralytics is not installed; install vision-worker/requirements-accelerated.txt."
             ) from exc
         self.path = path
         self.model = YOLO(str(path))
+        try:
+            self.compute = select_compute_device(
+                workload="card detection and instance segmentation",
+                required_runtime="torch",
+                beneficial=True,
+            )
+        except ComputeDeviceError:
+            # Explicit CUDA with fallback disabled must fail before inference rather
+            # than silently selecting the CPU.
+            raise
 
     @staticmethod
     def _polygon_from_mask(mask_xy: object) -> np.ndarray | None:
@@ -57,13 +68,23 @@ class LearnedCardDetector:
         return cv2.boxPoints(rect).astype(np.float32)
 
     def detect(self, image: np.ndarray) -> list[CardDetection]:
-        result_list = self.model.predict(
-            source=image,
-            conf=settings.card_detector_confidence,
-            iou=settings.card_detector_iou,
-            max_det=settings.max_detections_per_image,
-            verbose=False,
-        )
+        try:
+            result_list = self.model.predict(
+                source=image,
+                conf=settings.card_detector_confidence,
+                iou=settings.card_detector_iou,
+                max_det=settings.max_detections_per_image,
+                device=self.compute.ultralytics_device,
+                half=self.compute.mixed_precision,
+                verbose=False,
+            )
+        except RuntimeError as exc:
+            # Do not hide GPU failures. The router may use the classical detector
+            # only when the backend is auto; explicit learned/CUDA modes surface
+            # the diagnostic to the caller.
+            raise RuntimeError(
+                f"Learned detector failed on {self.compute.selected_device}: {exc}"
+            ) from exc
         if not result_list:
             return []
         result = result_list[0]
@@ -123,7 +144,9 @@ class LearnedCardDetector:
                     area_fraction=round(float(area_fraction), 4),
                     fallback_whole_image=False,
                     crop=crop,
-                    detector_name=f"ultralytics:{self.path.name}",
+                    detector_name=(
+                        f"ultralytics:{self.path.name}:{self.compute.selected_device}"
+                    ),
                     kind_hint=kind_hint,
                 )
             )
