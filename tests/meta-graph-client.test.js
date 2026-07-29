@@ -11,6 +11,7 @@ function config(overrides = {}) {
     metaInstagramAccountId: 'ig-456',
     metaPageAccessToken: 'page-secret-token',
     metaInstagramAccessToken: 'instagram-secret-token',
+    metaOutboundChannels: ['messenger', 'instagram_dm'],
     metaRequestTimeoutMs: 1_000,
     ...overrides,
   };
@@ -35,11 +36,19 @@ function baseJob(overrides = {}) {
   };
 }
 
-test('Meta Graph readiness reports secret names without exposing values', () => {
+test('Meta Graph readiness reports secret and channel names without exposing values', () => {
   assert.deepEqual(metaGraphReadiness(config()), { ready: true, missing: [] });
-  const result = metaGraphReadiness(config({ metaPageAccessToken: '', metaInstagramAccessToken: '' }));
+  const result = metaGraphReadiness(config({
+    metaPageAccessToken: '',
+    metaInstagramAccessToken: '',
+    metaOutboundChannels: [],
+  }));
   assert.equal(result.ready, false);
-  assert.deepEqual(result.missing, ['META_PAGE_ACCESS_TOKEN', 'META_INSTAGRAM_ACCESS_TOKEN']);
+  assert.deepEqual(result.missing, [
+    'META_PAGE_ACCESS_TOKEN',
+    'META_INSTAGRAM_ACCESS_TOKEN',
+    'MANEBRAIN_META_OUTBOUND_CHANNELS',
+  ]);
   assert.doesNotMatch(JSON.stringify(result), /secret-token/);
 });
 
@@ -79,9 +88,26 @@ test('Instagram direct messages use the Instagram account and token', async () =
   });
 });
 
-test('Facebook and Instagram comments target the exact inbound comment', async () => {
-  const urls = [];
+test('comment replies are blocked until their exact channels are explicitly activated', async () => {
+  let called = false;
   const client = new MetaGraphClient(config(), {
+    fetchImpl: async () => { called = true; return response(200, { id: 'unexpected' }); },
+  });
+  await assert.rejects(client.send(baseJob({ channel: 'facebook_comment' })), (error) => {
+    assert.ok(error instanceof MetaGraphDispatchError);
+    assert.equal(error.code, 'META_OUTBOUND_CHANNEL_DISABLED');
+    assert.equal(error.certainty, 'rejected_before_acceptance');
+    assert.equal(error.retryable, false);
+    return true;
+  });
+  assert.equal(called, false);
+});
+
+test('explicitly reviewed Facebook and Instagram comment channels target the exact inbound comment', async () => {
+  const urls = [];
+  const client = new MetaGraphClient(config({
+    metaOutboundChannels: ['messenger', 'instagram_dm', 'facebook_comment', 'instagram_comment'],
+  }), {
     fetchImpl: async (url) => {
       urls.push(url);
       return response(200, { id: `reply-${urls.length}` });
