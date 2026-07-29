@@ -1,0 +1,14 @@
+# Non-secret immutable release manifest.
+# Copy to /srv/maneflow/.release.staging and update only through the deployment procedure.
+
+MANEFLOW_IMAGE_REF=registry.example.invalid/maneflow@sha256:REPLACE
+MANEFLOW_VISION_IMAGE_REF=registry.example.invalid/maneflow-vision@sha256:REPLACE
+POSTGRES_IMAGE_REF=pgvector/pgvector@sha256:REPLACE
+REDIS_IMAGE_REF=redis@sha256:REPLACE
+CADDY_IMAGE_REF=caddy@sha256:REPLACE
+
+RELEASE_COMMIT_SHA=REPLACE_WITH_40_CHARACTER_COMMIT_SHA
+RELEASE_DEPLOYED_AT=2026-07-29T00:00:00.000Z
+MANEFLOW_WEB_RELEASE_ID=REPLACE
+MANEFLOW_API_RELEASE_ID=REPLACE
+MANEFLOW_VISION_RELEASE_ID=REPLACE
