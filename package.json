@@ -57,7 +57,15 @@
     "training:calibrate-grouping": "python scripts/train_grouping_calibration.py",
     "training:auto-label": "python scripts/auto_resolve_owner_labels.py",
     "training:daemon": "python scripts/adaptive_learning_daemon.py",
-    "training:cycle": "python scripts/adaptive_learning_daemon.py --once --force"
+    "training:cycle": "python scripts/adaptive_learning_daemon.py --once --force",
+    "vision:gpu:doctor": "cd vision-worker && python -m maneflow_vision.gpu.doctor --json-out ../artifacts/gpu-environment.json --markdown-out ../docs/GPU_ENVIRONMENT_REPORT.md",
+    "vision:gpu:status": "cd vision-worker && python -m maneflow_vision.gpu.status",
+    "vision:dataset:audit": "cd vision-worker && python -m maneflow_vision.data.audit",
+    "vision:dataset:prepare": "cd vision-worker && python -m maneflow_vision.data.prepare",
+    "vision:embeddings:build": "cd vision-worker && python -m maneflow_vision.embeddings.build",
+    "vision:benchmark:run": "cd vision-worker && python -m maneflow_vision.benchmark.run",
+    "vision:benchmark:compare": "cd vision-worker && python -m maneflow_vision.benchmark.compare",
+    "vision:experiment:run": "cd vision-worker && python -m maneflow_vision.experiments.run"
   },
   "engines": {
     "node": ">=22"
