@@ -11,6 +11,7 @@ import {
   encryptOwnerSecret,
   generateRecoveryCodes,
   generateTotpSecret,
+  ownerMfaKey,
   ownerTotpUri,
   verifyTotp,
 } from './services/owner-mfa.js';
@@ -128,11 +129,19 @@ function verifySecondFactor(actor, code, config) {
   };
 }
 
+async function persist(store) {
+  if (typeof store.persist !== 'function') throw new Error('The canonical account store cannot persist owner security state.');
+  await store.persist();
+}
+
 async function audit(store, actor, eventType, event = {}) {
-  if (typeof store.recordAudit !== 'function') return;
-  await store.recordAudit(actor.userId, eventType, {
-    ...event,
+  if (typeof store.audit !== 'function') return;
+  await store.audit({
+    type: eventType,
+    userId: actor.userId,
+    actorUserId: actor.userId,
     sessionId: actor.session.id || null,
+    ...event,
   });
 }
 
@@ -188,6 +197,7 @@ export function createOwnerSecurityRouter({ config, store } = {}) {
       }
 
       if (url.pathname === '/api/auth/owner/mfa/enroll' && method === 'POST') {
+        ownerMfaKey(config.ownerMfaEncryptionKey);
         const body = await readJson(req, 20_000);
         if (!await verifyOwnerPassword(actor, body.password)) {
           const error = new Error('Current password is incorrect.');
@@ -201,7 +211,7 @@ export function createOwnerSecurityRouter({ config, store } = {}) {
           expiresAt,
           createdAt: new Date().toISOString(),
         };
-        await store.save();
+        await persist(store);
         await audit(store, actor, 'owner_mfa_enrollment_started');
         json(res, 201, {
           secret,
@@ -217,11 +227,12 @@ export function createOwnerSecurityRouter({ config, store } = {}) {
       }
 
       if (url.pathname === '/api/auth/owner/mfa/confirm' && method === 'POST') {
+        ownerMfaKey(config.ownerMfaEncryptionKey);
         const body = await readJson(req, 20_000);
         const enrollment = actor.user.ownerMfaEnrollment;
         if (!enrollment?.secretCiphertext || Date.parse(enrollment.expiresAt) <= Date.now()) {
           delete actor.user.ownerMfaEnrollment;
-          await store.save();
+          await persist(store);
           const error = new Error('MFA enrollment is missing or expired. Start enrollment again.');
           error.code = 'OWNER_MFA_ENROLLMENT_EXPIRED';
           throw error;
@@ -245,7 +256,7 @@ export function createOwnerSecurityRouter({ config, store } = {}) {
         delete actor.user.ownerMfaEnrollment;
         actor.session.mfaVerifiedAt = now;
         actor.session.reauthenticatedAt = now;
-        await store.save();
+        await persist(store);
         await audit(store, actor, 'owner_mfa_enabled', { recoveryCodeCount: recovery.codes.length });
         json(res, 200, {
           status: publicStatus(actor, config),
@@ -256,6 +267,7 @@ export function createOwnerSecurityRouter({ config, store } = {}) {
       }
 
       if (url.pathname === '/api/auth/owner/reauthenticate' && method === 'POST') {
+        ownerMfaKey(config.ownerMfaEncryptionKey);
         const body = await readJson(req, 20_000);
         if (!actor.user.ownerMfa?.enabledAt) {
           const error = new Error('Owner MFA enrollment is required.');
@@ -279,7 +291,7 @@ export function createOwnerSecurityRouter({ config, store } = {}) {
         actor.user.ownerMfa.lastVerifiedAt = now;
         actor.session.mfaVerifiedAt = now;
         actor.session.reauthenticatedAt = now;
-        await store.save();
+        await persist(store);
         await audit(store, actor, 'owner_recent_reauthentication', { method: verification.method });
         json(res, 200, {
           status: publicStatus(actor, config),
@@ -289,6 +301,7 @@ export function createOwnerSecurityRouter({ config, store } = {}) {
       }
 
       if (url.pathname === '/api/auth/owner/recovery-codes/regenerate' && method === 'POST') {
+        ownerMfaKey(config.ownerMfaEncryptionKey);
         const body = await readJson(req, 20_000);
         const status = publicStatus(actor, config);
         if (!status.recentReauthentication) {
@@ -315,7 +328,7 @@ export function createOwnerSecurityRouter({ config, store } = {}) {
         if (verification.method === 'totp') actor.user.ownerMfa.lastUsedStep = verification.step;
         actor.session.mfaVerifiedAt = now;
         actor.session.reauthenticatedAt = now;
-        await store.save();
+        await persist(store);
         await audit(store, actor, 'owner_recovery_codes_regenerated', { recoveryCodeCount: recovery.codes.length });
         json(res, 200, {
           recoveryCodes: recovery.codes,
