@@ -12,3 +12,20 @@ apps/mobile-expo/dist/
 backups/
 *.before-restore-*
 config/external-release-gates.json
+
+# Generated vision/GPU artifacts. Preserve only sanitized status placeholders in Git.
+artifacts/private/
+artifacts/crops/
+artifacts/embeddings/
+artifacts/ocr/
+artifacts/benchmarks/
+artifacts/experiments/
+artifacts/models/
+artifacts/reports/
+artifacts/dataset-audit/
+*.engine
+*.plan
+*.onnx
+*.pt
+*.pth
+*.ckpt
