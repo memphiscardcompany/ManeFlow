@@ -45,7 +45,7 @@ test('production validation accepts configured PostgreSQL and internal service s
   assert.deepEqual(validation.errors, []);
 });
 
-test('production Meta outbound fails closed without owner and exact asset allowlists', () => {
+test('production Meta outbound fails closed without owner, assets, tokens, version, and channel policy', () => {
   const common = {
     NODE_ENV: 'production',
     RELEASE_CHANNEL: 'production',
@@ -60,17 +60,27 @@ test('production Meta outbound fails closed without owner and exact asset allowl
     MANEFLOW_DEMO_MODE: 'false',
     MANEFLOW_EXPOSE_DEV_TOKENS: 'false',
     MANEBRAIN_META_OUTBOUND_ENABLED: 'true',
+    MANEBRAIN_META_OUTBOUND_CHANNELS: '',
   };
   const blocked = validateRuntimeConfig(loadConfig(common), common);
   assert.equal(blocked.ok, false);
-  assert.ok(blocked.errors.some((error) => error.includes('PLATFORM_OWNER')));
-  assert.ok(blocked.errors.some((error) => error.includes('META_PAGE_ID')));
-  assert.ok(blocked.errors.some((error) => error.includes('KILL_SWITCH')));
+  for (const expected of [
+    'PLATFORM_OWNER',
+    'META_PAGE_ID',
+    'META_PAGE_ACCESS_TOKEN',
+    'META_INSTAGRAM_ACCESS_TOKEN',
+    'META_GRAPH_API_VERSION',
+    'MANEBRAIN_META_OUTBOUND_CHANNELS',
+    'KILL_SWITCH',
+  ]) {
+    assert.ok(blocked.errors.some((error) => error.includes(expected)), expected);
+  }
 
   const configured = {
     ...common,
     MANEBRAIN_META_INTAKE_ENABLED: 'true',
     MANEBRAIN_META_KILL_SWITCH: 'false',
+    MANEBRAIN_META_OUTBOUND_CHANNELS: 'messenger,instagram_dm',
     MANEFLOW_PLATFORM_OWNER_USER_IDS: '00000000-0000-4000-8000-000000000001',
     META_APP_SECRET: 'meta-app-secret-value',
     META_WEBHOOK_VERIFY_TOKEN: 'meta-verify-token-value',
@@ -79,11 +89,24 @@ test('production Meta outbound fails closed without owner and exact asset allowl
     META_BUSINESS_ID: 'business-1',
     META_PAGE_ID: 'page-1',
     META_INSTAGRAM_ACCOUNT_ID: 'instagram-1',
+    META_GRAPH_API_VERSION: 'v25.0',
+    META_PAGE_ACCESS_TOKEN: 'page-access-token-value',
+    META_INSTAGRAM_ACCESS_TOKEN: 'instagram-access-token-value',
   };
   const allowed = validateRuntimeConfig(loadConfig(configured), configured);
   assert.equal(allowed.ok, true, allowed.errors.join('; '));
   assert.equal(allowed.safeConfig.metaMode, 'owner_approval');
   assert.equal(allowed.safeConfig.metaIntakeMode, 'enabled');
+  assert.deepEqual(allowed.safeConfig.metaOutboundChannels, ['messenger', 'instagram_dm']);
+  assert.equal(JSON.stringify(allowed.safeConfig).includes('access-token-value'), false);
+
+  const commentEnabled = {
+    ...configured,
+    MANEBRAIN_META_OUTBOUND_CHANNELS: 'messenger,instagram_dm,facebook_comment',
+  };
+  const commentValidation = validateRuntimeConfig(loadConfig(commentEnabled), commentEnabled);
+  assert.equal(commentValidation.ok, true, commentValidation.errors.join('; '));
+  assert.ok(commentValidation.warnings.some((warning) => warning.includes('comment replies')));
 });
 
 test('production Meta intake fails closed without signature, verification, owner, and asset configuration', () => {
