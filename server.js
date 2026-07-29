@@ -10,6 +10,7 @@ import { TtlCache } from './src/services/cache.js';
 import { createProviderRegistry } from './src/services/provider-registry.js';
 import { LightOcrService } from './src/ocr-service/lightOcrService.js';
 import { DatabaseRuntime } from './src/db/databaseRuntime.js';
+import { createMetaOwnerRouter } from './src/manebrain/meta-owner-router.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -46,7 +47,21 @@ const ocrService = new LightOcrService({
   queueCapacity: config.localOcrQueueCapacity,
   timeoutMs: config.localOcrTimeoutMs,
 });
-const router = createRouter({ config, cards, sales, providers, store, cache, runtimeValidation, storage, ocrService, databaseRuntime });
+const coreRouter = createRouter({ config, cards, sales, providers, store, cache, runtimeValidation, storage, ocrService, databaseRuntime });
+const metaOwnerRouter = createMetaOwnerRouter({ config, store, databaseRuntime });
+const router = async (req, res) => {
+  try {
+    const handled = await metaOwnerRouter(req, res);
+    if (handled || res.writableEnded) return;
+    await coreRouter(req, res);
+  } catch (error) {
+    if (!res.headersSent) {
+      res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+    }
+    if (!res.writableEnded) res.end(JSON.stringify({ error: 'UNHANDLED_REQUEST_FAILURE' }));
+    console.error('Unhandled ManeFlow request failure:', error instanceof Error ? error.message : String(error));
+  }
+};
 const server = http.createServer(router);
 
 server.requestTimeout = 30_000;

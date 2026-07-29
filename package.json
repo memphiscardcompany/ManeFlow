@@ -31,6 +31,8 @@
     "security:scan": "node scripts/scan-secrets.mjs",
     "db:migrate": "node scripts/migrate-postgres.js",
     "db:verify": "node scripts/verify-postgres-schema.js",
+    "meta:dispatch:once": "node scripts/run-meta-outbound-worker.mjs",
+    "meta:dispatch:worker": "node scripts/run-meta-outbound-worker.mjs --continuous",
     "package:windows-beta": "node scripts/package-windows-beta.js",
     "package:checksums": "node scripts/write-release-checksums.js",
     "package:beta": "npm run package && npm run verify:release && npm run package:windows-beta && npm run package:checksums",

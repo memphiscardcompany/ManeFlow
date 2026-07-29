@@ -108,9 +108,27 @@ export class MetaOutboundRepository {
           FROM claimed
           RETURNING id
         )
-        SELECT claimed.*
+        SELECT
+          claimed.*,
+          conversation.channel,
+          conversation.provider_account_id,
+          conversation.provider_conversation_id,
+          conversation.provider_sender_id,
+          latest_inbound.provider_message_id AS target_provider_message_id
         FROM claimed
         JOIN attempt ON attempt.id = claimed.last_attempt_id
+        JOIN public.manebrain_conversations AS conversation
+          ON conversation.id = claimed.conversation_id
+         AND conversation.owner_user_id = claimed.owner_user_id
+        LEFT JOIN LATERAL (
+          SELECT message.provider_message_id
+          FROM public.manebrain_messages AS message
+          WHERE message.owner_user_id = claimed.owner_user_id
+            AND message.conversation_id = claimed.conversation_id
+            AND message.direction = 'inbound'
+          ORDER BY message.received_at DESC NULLS LAST, message.created_at DESC, message.id DESC
+          LIMIT 1
+        ) AS latest_inbound ON true
       `, [ownerId, leaseToken, this.leaseDurationMs, attemptId]);
       return result.rows[0] || null;
     });
@@ -136,6 +154,7 @@ export class MetaOutboundRepository {
     leaseToken,
     errorCode,
     responseMetadata = {},
+    retryable = true,
   }) {
     return this.complete(ownerUserId, {
       jobId,
@@ -143,6 +162,7 @@ export class MetaOutboundRepository {
       outcome: 'rejected_before_acceptance',
       errorCode: requiredString(errorCode, 'errorCode', 160),
       responseMetadata,
+      retryable: retryable === true,
     });
   }
 
@@ -158,6 +178,7 @@ export class MetaOutboundRepository {
       outcome: 'outcome_unknown',
       errorCode: requiredString(errorCode, 'errorCode', 160),
       responseMetadata,
+      retryable: false,
     });
   }
 
@@ -168,6 +189,7 @@ export class MetaOutboundRepository {
     providerMessageId = null,
     errorCode = null,
     responseMetadata = {},
+    retryable = true,
   }) {
     const normalizedJobId = uuid(jobId, 'jobId');
     const normalizedLeaseToken = uuid(leaseToken, 'leaseToken');
@@ -208,25 +230,25 @@ export class MetaOutboundRepository {
         SET status = CASE
               WHEN $4 = 'accepted' THEN 'SENT'
               WHEN $4 = 'outcome_unknown' THEN 'DELIVERY_UNKNOWN'
-              WHEN locked.attempts >= locked.max_attempts THEN 'DEAD_LETTER'
+              WHEN $9 = false OR locked.attempts >= locked.max_attempts THEN 'DEAD_LETTER'
               ELSE 'RETRY_WAIT'
             END,
             delivery_certainty = CASE
               WHEN $4 = 'accepted' THEN 'accepted'
               WHEN $4 = 'outcome_unknown' THEN 'outcome_unknown'
-              WHEN locked.attempts >= locked.max_attempts THEN 'rejected_before_acceptance'
+              WHEN $9 = false OR locked.attempts >= locked.max_attempts THEN 'rejected_before_acceptance'
               ELSE NULL
             END,
             provider_message_id = CASE WHEN $4 = 'accepted' THEN $5 ELSE NULL END,
             last_error_code = $6,
             available_at = CASE
-              WHEN $4 = 'rejected_before_acceptance' AND locked.attempts < locked.max_attempts
+              WHEN $4 = 'rejected_before_acceptance' AND $9 = true AND locked.attempts < locked.max_attempts
                 THEN clock_timestamp() + ($8 * interval '1 millisecond')
               ELSE job.available_at
             END,
             sent_at = CASE WHEN $4 = 'accepted' THEN clock_timestamp() ELSE NULL END,
             terminal_at = CASE
-              WHEN $4 IN ('accepted', 'outcome_unknown') OR locked.attempts >= locked.max_attempts
+              WHEN $4 IN ('accepted', 'outcome_unknown') OR $9 = false OR locked.attempts >= locked.max_attempts
                 THEN clock_timestamp()
               ELSE NULL
             END,
@@ -245,6 +267,7 @@ export class MetaOutboundRepository {
         errorCode,
         JSON.stringify(safeMetadata),
         this.retryDelayMs,
+        retryable === true,
       ]);
       if (!result.rowCount) {
         throw new MetaOutboundRepositoryError('Outbound completion lost its lease or was already finalized.', {
