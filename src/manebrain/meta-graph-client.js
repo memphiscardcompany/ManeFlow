@@ -35,7 +35,7 @@ function graphVersion(value) {
 function outboundChannels(value) {
   const values = Array.isArray(value) ? value : String(value || '').split(',');
   const normalized = values.map((item) => String(item).trim().toLowerCase()).filter(Boolean);
-  if (!normalized.length) return new Set(['messenger', 'instagram_dm']);
+  if (!normalized.length) return new Set();
   const result = new Set();
   for (const channel of normalized) {
     if (!SUPPORTED_CHANNELS.has(channel)) throw new TypeError(`Unsupported configured Meta outbound channel: ${channel}`);
@@ -175,7 +175,20 @@ export class MetaGraphClient {
   }
 
   async send(job) {
-    const request = this.requestFor(job);
+    let request;
+    try {
+      request = this.requestFor(job);
+    } catch (error) {
+      if (error instanceof MetaGraphDispatchError) throw error;
+      throw new MetaGraphDispatchError('Meta outbound job failed local provider preflight.', {
+        code: 'META_GRAPH_PREFLIGHT_REJECTED',
+        certainty: 'rejected_before_acceptance',
+        retryable: false,
+        responseMetadata: { preflight: true },
+        cause: error,
+      });
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     timer.unref?.();
