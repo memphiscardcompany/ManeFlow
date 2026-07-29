@@ -144,7 +144,19 @@ export class MetaGraphClient {
   }
 
   async send(job) {
-    const request = this.requestFor(job);
+    let request;
+    try {
+      request = this.requestFor(job);
+    } catch (error) {
+      throw new MetaGraphDispatchError('Meta outbound job failed local provider preflight.', {
+        code: 'META_GRAPH_PREFLIGHT_REJECTED',
+        certainty: 'rejected_before_acceptance',
+        retryable: false,
+        responseMetadata: { preflight: true },
+        cause: error,
+      });
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     timer.unref?.();
