@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "product": "ManeFlow",
+  "releaseKind": "deployed-beta-source-capsule",
+  "canonicalProduction": false,
+  "origin": {
+    "platform": "AppDeploy",
+    "appId": "142df297558ace9e22",
+    "displayVersion": "v90",
+    "snapshotVersion": "1785476302989",
+    "builtAt": "2026-07-31T05:38:22.989Z",
+    "hostedUrl": "https://142df297558ace9e22.v2.appdeploy.ai/"
+  },
+  "website": {
+    "route": "https://www.memphiscardcompany.com/pages/maneflow",
+    "shopifyPageId": "gid://shopify/Page/706823258482",
+    "handle": "maneflow",
+    "published": true,
+    "templateSuffix": "",
+    "verifiedAt": "2026-07-31"
+  },
+  "customDomain": {
+    "hostname": "app.memphiscardcompany.com",
+    "boundAppId": "142df297558ace9e22",
+    "status": "pending_dns",
+    "requiredRecord": {
+      "type": "CNAME",
+      "host": "app",
+      "target": "proxy-v2.appdeploy.ai"
+    }
+  },
+  "qa": {
+    "status": "passed",
+    "totalJobs": 7,
+    "passedJobs": 7,
+    "frontendErrors": 0,
+    "backendErrors": 0,
+    "networkErrors": 0,
+    "scope": "hosted customer workflow and UI behavior only"
+  },
+  "preservedFiles": [
+    "src/CardScannerV2.tsx",
+    "src/InstallManeFlow.tsx",
+    "src/ScanArchivePanel.tsx",
+    "src/MccVaultDeploy.tsx",
+    "tests/tests.txt"
+  ],
+  "limitations": [
+    "Not proof of canonical production infrastructure",
+    "Not proof of card-identification accuracy",
+    "Not proof of completed-sale valuation accuracy",
+    "Not proof of provider availability",
+    "Not proof of GPU-backed public inference",
+    "Not proof of native desktop packaging",
+    "Custom domain remains pending DNS"
+  ]
+}
