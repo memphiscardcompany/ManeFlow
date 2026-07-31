@@ -20,7 +20,10 @@ test('container publication runs only after a green main verification or explici
   assert.doesNotMatch(workflow, /pull_request:/);
   assert.match(workflow, /github\.event\.workflow_run\.event == 'push'/);
   assert.match(workflow, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /git rev-parse --verify origin\/main/);
   assert.match(workflow, /git merge-base --is-ancestor "\$RELEASE_SHA" origin\/main/);
+  assert.doesNotMatch(workflow, /git fetch --no-tags origin main/);
   assert.match(workflow, /No successful main-branch Verify ManeFlow run exists/);
 });
 
