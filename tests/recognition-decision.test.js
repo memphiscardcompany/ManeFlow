@@ -196,6 +196,9 @@ test('recognition engine exposes the additive selector and treats pgvector facts
     },
     vision: {
       provider: 'maneflow_pgvector',
+      physicalCardCount: 1,
+      physicalCardDetected: true,
+      cropQuality: 'single-card',
       facts: {
         player: 'Victor Wembanyama',
         year: 2023,
