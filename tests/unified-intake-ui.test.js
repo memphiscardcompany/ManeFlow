@@ -30,7 +30,7 @@ test('separate selection actions append repeated views to one queue', async () =
   assert.match(script, /async function appendSelection\(entries\)/);
   assert.match(script, /state\.selected\.push\(entry\)/);
   assert.match(script, /const queueKey = `\$\{selectionId\}:\$\{relativePath\}`/);
-  assert.match(script, /entry\.queueKey:.*entry\.relativePath/s);
+  assert.match(script, /sha256\(`\$\{entry\.queueKey\}:\$\{entry\.relativePath\}:\$\{entry\.file\.size\}:\$\{entry\.file\.lastModified\}`\)/);
   assert.match(script, /cameraInput\.value = ''/);
   assert.match(script, /filesInput\.value = ''/);
   assert.match(script, /folderInput\.value = ''/);
