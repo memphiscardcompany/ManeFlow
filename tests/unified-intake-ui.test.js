@@ -20,8 +20,25 @@ test('durable intake exposes one surface for camera files folders and drag-drop'
   assert.match(html, /id="choose-camera"/);
   assert.match(html, /id="choose-files"/);
   assert.match(html, /id="choose-folder"/);
-  assert.match(html, /src="\/unified-intake\.js"/);
+  assert.match(html, /import\('\/unified-intake\.js'\)/);
   assert.match(script, /dropZone\.addEventListener\('drop'/);
+});
+
+test('anonymous visitors never receive active scanner controls before authentication', async () => {
+  const html = await read('public/bulk-upload.html');
+
+  assert.match(html, /<html[^>]*class="auth-pending"/);
+  assert.match(html, /\.auth-pending \.intake-shell\{display:none\}/);
+  assert.match(html, /fetch\('\/api\/auth\/me'/);
+  assert.match(html, /credentials: 'include'/);
+  assert.match(html, /if \(!response\.ok \|\| !account\.authenticated\)/);
+  assert.match(html, /location\.replace\('\/#\/account'\)/);
+  assert.match(html, /document\.documentElement\.classList\.add\('auth-ready'\)/);
+  assert.match(html, /No card-upload controls were opened/);
+
+  const authCheck = html.indexOf("fetch('/api/auth/me'");
+  const scannerImport = html.indexOf("import('/unified-intake.js')");
+  assert.ok(authCheck >= 0 && scannerImport > authCheck, 'scanner bundle must load only after the account check');
 });
 
 test('separate selection actions append repeated views to one queue', async () => {
@@ -70,6 +87,7 @@ test('customer-facing intake language is provider-neutral and professional', asy
   assert.doesNotMatch(publicText, /\bPSA\b/i);
   assert.doesNotMatch(publicText, /\bowner\b/i);
   assert.doesNotMatch(publicText, /\biPhone\b/i);
+  assert.doesNotMatch(publicText, /evidence pipeline|provider diagnostics|specialist ensemble|direct OCR/i);
   assert.match(publicText, /Results are drafts until reviewed/);
   assert.match(publicText, /does not authenticate cards, assign grades, or guarantee market value/i);
 });
