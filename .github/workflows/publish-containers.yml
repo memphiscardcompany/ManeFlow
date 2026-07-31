@@ -72,7 +72,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-          git fetch --no-tags origin main
+          git rev-parse --verify origin/main >/dev/null
           git merge-base --is-ancestor "$RELEASE_SHA" origin/main
           test -z "$(git status --porcelain)"
 
