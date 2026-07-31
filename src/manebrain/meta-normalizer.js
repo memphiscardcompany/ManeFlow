@@ -4,6 +4,7 @@ const CHANNELS = new Set([
   'facebook_comment',
   'instagram_comment',
 ]);
+const DIRECTIONS = new Set(['inbound', 'outbound']);
 
 function text(value, maximumLength) {
   const normalized = String(value ?? '').trim();
@@ -31,10 +32,11 @@ function attachment(value) {
 
 function normalizeMessage(body, entry, item) {
   const message = item?.message;
-  if (!message || message.is_echo === true) return { ignored: 'ECHO_OR_NON_MESSAGE' };
+  if (!message) return { ignored: 'NON_MESSAGE_EVENT' };
   const providerMessageId = text(message.mid, 500);
   const providerAccountId = text(entry?.id || item?.recipient?.id, 500);
-  const providerSenderId = text(item?.sender?.id, 500);
+  const isEcho = message.is_echo === true;
+  const providerSenderId = text(isEcho ? item?.recipient?.id : item?.sender?.id, 500);
   const receivedAt = timestamp(item?.timestamp || entry?.time);
   if (!providerMessageId || !providerAccountId || !providerSenderId || !receivedAt) {
     return { ignored: 'UNSTABLE_MESSAGE_IDENTITY' };
@@ -44,6 +46,8 @@ function normalizeMessage(body, entry, item) {
     event: {
       provider: 'meta',
       channel,
+      direction: isEcho ? 'outbound' : 'inbound',
+      isEcho,
       providerAccountId,
       providerEventId: providerMessageId,
       providerMessageId,
@@ -76,6 +80,8 @@ function normalizeComment(body, entry, change) {
     event: {
       provider: 'meta',
       channel,
+      direction: 'inbound',
+      isEcho: false,
       providerAccountId,
       providerEventId: providerMessageId,
       providerMessageId,
@@ -91,6 +97,7 @@ function normalizeComment(body, entry, change) {
 
 function assertEvent(event) {
   if (!CHANNELS.has(event.channel)) throw new TypeError('Unsupported normalized Meta channel.');
+  if (!DIRECTIONS.has(event.direction)) throw new TypeError('Unsupported normalized Meta direction.');
   for (const field of [
     'providerAccountId',
     'providerEventId',
@@ -103,6 +110,7 @@ function assertEvent(event) {
   }
   return Object.freeze({
     ...event,
+    isEcho: event.isEcho === true,
     attachments: Object.freeze(event.attachments.map((item) => Object.freeze(item))),
   });
 }
