@@ -111,7 +111,7 @@ function scoreRoutes(input = {}, evidence = sourceEvidence(input)) {
   if (evidence.slabCount > 0 && evidence.detectedCardCount > 1) scores.mixed_raw_slab += 0.84;
   if (cardType === 'slabbed' || sceneHint.includes('slab')) scores.single_slab += 0.16;
 
-  if (evidence.detectedCardCount === 1 && evidence.slabCount === 0) scores.single_raw += 0.72;
+  if (evidence.detectedCardCount === 1 && evidence.slabCount === 0) scores.single_raw += 0.72 * evidence.detectorConfidence;
   if (cropQuality === 'single_card' || cardType === 'raw') scores.single_raw += 0.18;
 
   if (cropQuality.includes('partial') || edgeCompleteness > 0 && edgeCompleteness < 0.72) scores.partial_card += 0.82;
