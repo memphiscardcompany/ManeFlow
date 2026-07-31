@@ -18,10 +18,10 @@ function detectorInput({ body = {}, sceneAnalysis = null, vision = null } = {}) 
   const detections = safeArray(sceneAnalysis?.detectedCards);
   const primary = vision || sceneAnalysis?.primaryCard || {};
   const scene = sceneAnalysis?.scene || {};
+  const explicitSceneCount = scene.cardCount ?? sceneAnalysis?.detectedCardCount;
   const detectedCardCount = Number(
-    scene.cardCount
-      ?? sceneAnalysis?.detectedCardCount
-      ?? detections.length
+    explicitSceneCount
+      ?? (detections.length > 0 ? detections.length : undefined)
       ?? primary.detectedCardCount
       ?? primary.physicalCardCount
       ?? 0,
