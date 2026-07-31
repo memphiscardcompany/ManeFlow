@@ -105,6 +105,7 @@ test('quality gate removes exact acceptance for insufficient evidence', () => {
       },
     }),
   });
+  assert.equal(result.routing.route, 'single_raw');
   assert.equal(result.quality[0].tier, 'insufficient_evidence');
   assert.equal(result.recognition.items[0].exact, false);
   assert.equal(result.recognition.items[0].requiresManualConfirmation, true);
