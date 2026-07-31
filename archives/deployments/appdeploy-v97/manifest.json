@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "product": "ManeFlow",
+  "classification": "deployed AppDeploy beta snapshot provenance",
+  "appId": "142df297558ace9e22",
+  "versionName": "v97",
+  "versionId": "1785480539332",
+  "deployedAt": "2026-07-31T06:48:59.332Z",
+  "liveUrl": "https://142df297558ace9e22.v2.appdeploy.ai/",
+  "websiteUrl": "https://www.memphiscardcompany.com/pages/maneflow",
+  "canonicalMainAtCapture": "da8738ce33c89738d3e9007cb99903804b2f57fe",
+  "supersedes": [
+    "v89/1785476302989",
+    "v90/1785478189041",
+    "v91/1785478830417",
+    "v92/1785479133225",
+    "v93/1785479433022",
+    "v94/1785479727158",
+    "v95/1785480044956",
+    "v96/1785480284863"
+  ],
+  "verifiedChanges": [
+    "One unified camera, drag-and-drop, multi-file, and folder intake surface",
+    "Repeated image selections append to one queue",
+    "Frontend and backend 30-card truncation removed",
+    "Backend raw detection-result slice removed",
+    "Optional reported count uses a high abuse-protection ceiling rather than a product cap",
+    "Large detected sets use bounded serial identification with balanced mode and cooldown",
+    "Recognition retries are bounded and 429 capacity failures preserve reviewable unresolved records",
+    "Safe stop retains queued files and completed results without changing into a destructive clear control",
+    "Deterministic 36-record queue-integrity diagnostic is available through the normal SPA",
+    "Public scanner copy avoids provider-specific and internal-role wording"
+  ],
+  "deploymentEvidence": {
+    "status": "ready",
+    "e2eStatus": "passed",
+    "reportedTotalJobs": 9,
+    "reportedPassedJobs": 8,
+    "frontendErrors": 0,
+    "backendErrors": 0,
+    "networkErrors": 0,
+    "qaRunGroupId": "b536a5f22e06200f"
+  },
+  "claimsBoundary": [
+    "The provider returned overall E2E status passed while reporting total_jobs 9 and passed_jobs 8; both values are preserved exactly.",
+    "The 36-record diagnostic proves container preservation and grid regularization only, not real-image detector recall.",
+    "This release does not establish universal exact-card or exact-parallel accuracy.",
+    "This release is a hosted beta snapshot and is not proof of production PostgreSQL, private object storage, queues, backup restore, or canonical GitHub deployment equivalence.",
+    "Scheduled handler success does not prove model weights changed or recognition accuracy improved."
+  ]
+}
