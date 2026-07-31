@@ -16,7 +16,9 @@ test('Shopify ManeFlow launch remains account-gated and first-party', () => {
   const section = read(sectionPath);
 
   assert.match(section, /\{% if customer %\}/);
+  assert.match(section, /routes\.storefront_login_url/);
   assert.match(section, /routes\.account_login_url/);
+  assert.match(section, /Sign in or create account/);
   assert.match(section, /https:\/\/app\.memphiscardcompany\.com/);
   assert.match(section, /Pricing by ManeFlow/);
   assert.match(section, /completed-sale evidence/i);
@@ -24,6 +26,7 @@ test('Shopify ManeFlow launch remains account-gated and first-party', () => {
 
   assert.doesNotMatch(section, /<iframe\b/i);
   assert.doesNotMatch(section, /\.v2\.appdeploy\.ai/i);
+  assert.doesNotMatch(section, /\/account\/register/);
   assert.doesNotMatch(section, /marketValue|compHigh/);
 });
 
