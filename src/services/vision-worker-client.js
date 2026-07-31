@@ -122,6 +122,7 @@ export class VisionWorkerClient {
 export function workerCardToLegacyVision(workerScan) {
   const card = workerScan?.predicted_card || {};
   const confidence = Number(workerScan?.identity_confidence || 0);
+  const detectedObjectCount = Math.max(0, Math.round(Number(workerScan?.detected_object_count || 0)));
   const surfaceAnalysis = workerScan?.surface_analysis || null;
   const centeringAssessment = workerScan?.centering_assessment || null;
   const detectedSurfaceType = workerScan?.detected_surface_type || surfaceAnalysis?.detected_surface_type || null;
@@ -151,6 +152,9 @@ export function workerCardToLegacyVision(workerScan) {
     ...facts,
     fieldConfidence,
     confidence,
+    physicalCardCount: detectedObjectCount,
+    physicalCardDetected: detectedObjectCount === 1,
+    cropQuality: detectedObjectCount === 1 ? 'single-card' : detectedObjectCount > 1 ? 'multiple-cards' : 'no-card',
     warnings: workerScan?.warnings || [],
     provider: workerScan?.identity_provider || 'maneflow_vision_worker',
     imageProcessedRemotely: Boolean(workerScan?.image_processed_remotely),
