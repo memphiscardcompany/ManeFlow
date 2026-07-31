@@ -39,7 +39,7 @@ function detectorInput({ body = {}, sceneAnalysis = null, vision = null } = {}) 
     cropQuality: primary.cropQuality,
     cardType: primary.cardType,
     largestRegionAreaRatio: primary.largestRegionAreaRatio,
-    edgeCompleteness: primary.edgeCompleteness ?? primary.imageQuality?.edgeCompleteness,
+    edgeCompleteness: primary.edgeCompleteness,
     collectionOverviewConfidence: scene.collectionOverviewConfidence ?? primary.collectionOverviewConfidence,
     sealedProductConfidence: scene.sealedProductConfidence ?? primary.sealedProductConfidence,
     stackConfidence: scene.stackConfidence ?? primary.stackConfidence,
