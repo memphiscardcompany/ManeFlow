@@ -49,6 +49,7 @@ test('worker card extraction maps into the legacy ManeFlow evidence contract', (
       player_name: 'Shohei Ohtani', year: 2018, brand: 'Topps', set_name: 'Update', card_number: 'US1',
     },
     identity_confidence: 0.91,
+    detected_object_count: 1,
     detected_surface_type: 'SILVER_HOLOFRACTOR',
     refractor_confidence: 0.76,
     surface_analysis: { detected_surface_type: 'SILVER_HOLOFRACTOR', refractor_confidence: 0.76 },
@@ -58,6 +59,9 @@ test('worker card extraction maps into the legacy ManeFlow evidence contract', (
   assert.equal(result.facts.player, 'Shohei Ohtani');
   assert.equal(result.facts.cardNumber, 'US1');
   assert.equal(result.fieldConfidence.player, 0.91);
+  assert.equal(result.physicalCardCount, 1);
+  assert.equal(result.physicalCardDetected, true);
+  assert.equal(result.cropQuality, 'single-card');
   assert.equal(result.facts.detectedSurfaceType, 'SILVER_HOLOFRACTOR');
   assert.equal(result.fieldConfidence.detectedSurfaceType, 0.76);
   assert.equal(result.surfaceAnalysis.refractor_confidence, 0.76);
