@@ -1,0 +1,14 @@
+{
+  "sections": {
+    "main": {
+      "type": "maneflow-beta",
+      "settings": {
+        "app_url": "https://app.memphiscardcompany.com",
+        "eyebrow": "MEMPHIS CARD COMPANY · MANEFLOW",
+        "headline": "Scan. Identify. Price. Collect.",
+        "subheadline": "Photograph one card, a slab, a binder page, or a full folder. ManeFlow creates conservative draft identifications, estimates current market value, and saves verified cards to your private collection."
+      }
+    }
+  },
+  "order": ["main"]
+}
