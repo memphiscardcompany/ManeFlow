@@ -1,0 +1,15 @@
+--- a/src/CardScannerV2.tsx	AppDeploy v90 / 1785476302989
++++ b/src/CardScannerV2.tsx	AppDeploy v91 / 1785478189041
+@@
+-function cleanBoxes(input:DetectionBox[]){const output:DetectionBox[]=[];for(const box of input){if(output.some(item=>overlap(item,box)>.58))continue;output.push(box)}return output.slice(0,30)}
++function cleanBoxes(input:DetectionBox[]){const output:DetectionBox[]=[];for(const box of input){if(output.some(item=>overlap(item,box)>.58))continue;output.push(box)}return output}
+
+# Effect
+#
+# v90 silently discarded valid non-overlapping card boundaries after the first 30.
+# v91 retains every boundary returned by the detector after overlap deduplication.
+# Identification remains bounded internally in chunks of two card crops.
+#
+# This patch is archival provenance for the deployed AppDeploy snapshot. It is not
+# directly applied to canonical production code without compatibility review and
+# repository-native tests.
