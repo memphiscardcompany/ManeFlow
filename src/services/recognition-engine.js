@@ -7,7 +7,7 @@ import {
 import { evaluateScanConfidence } from './scan-confidence.js';
 import { clamp, normalizeText } from './utils.js';
 
-export const RECOGNITION_ENGINE_VERSION = 'recognition-engine-v1.0';
+export const RECOGNITION_ENGINE_VERSION = 'recognition-engine-v1.1';
 
 const SCENE_TYPES = new Set([
   'single_card',
@@ -17,6 +17,7 @@ const SCENE_TYPES = new Set([
   'sealed_product',
   'cert_label',
   'manual_text',
+  'no_card',
   'unknown',
 ]);
 
@@ -35,6 +36,7 @@ function safeArray(value) {
 function normalizeSceneType(value = '') {
   const text = normalizeText(value).replace(/\s+/g, '_');
   if (SCENE_TYPES.has(text)) return text;
+  if (text.includes('no_card') || text.includes('non_card') || text.includes('empty_scene')) return 'no_card';
   if (text.includes('binder')) return 'binder_page';
   if (text.includes('mixed')) return 'mixed_raw_slab';
   if (text.includes('table') || text.includes('layout') || text.includes('group') || text.includes('multi')) return 'multi_card_table';
@@ -130,9 +132,11 @@ function regionQueryText(region = {}, body = {}, useGlobalText = false) {
 
 export function classifyRecognitionScene({ body = {}, sceneAnalysis = null } = {}) {
   if (sceneAnalysis?.scene) {
+    const type = normalizeSceneType(sceneAnalysis.scene.type);
+    const cardCount = Math.max(0, Number(sceneAnalysis.scene.cardCount || sceneAnalysis.detectedCards?.length || 0));
     return {
-      type: normalizeSceneType(sceneAnalysis.scene.type),
-      cardCount: Math.max(0, Number(sceneAnalysis.scene.cardCount || sceneAnalysis.detectedCards?.length || 0)),
+      type,
+      cardCount: type === 'no_card' ? 0 : cardCount,
       processingStrategy: sceneAnalysis.scene.processingStrategy || 'vision_scene',
       layoutRows: sceneAnalysis.scene.layoutRows ?? null,
       layoutColumns: sceneAnalysis.scene.layoutColumns ?? null,
@@ -144,15 +148,26 @@ export function classifyRecognitionScene({ body = {}, sceneAnalysis = null } = {
   if (has(body.certDataUrl) && !has(body.frontDataUrl) && !has(body.dataUrl)) {
     return { type: 'cert_label', cardCount: 1, processingStrategy: 'cert_only', layoutRows: null, layoutColumns: null, difficulty: 'medium', warnings: [] };
   }
-  if (name.includes('binder')) return { type: 'binder_page', cardCount: 0, processingStrategy: 'filename_hint', layoutRows: null, layoutColumns: null, difficulty: 'hard', warnings: ['Binder layout inferred from filename; AI scene detection is recommended.'] };
-  if (name.includes('table') || name.includes('group') || name.includes('lot')) return { type: 'multi_card_table', cardCount: 0, processingStrategy: 'filename_hint', layoutRows: null, layoutColumns: null, difficulty: 'hard', warnings: ['Multi-card layout inferred from filename; AI scene detection is recommended.'] };
+  if (name.includes('binder')) return { type: 'binder_page', cardCount: 0, processingStrategy: 'filename_hint', layoutRows: null, layoutColumns: null, difficulty: 'hard', warnings: ['Binder layout inferred from filename; detector evidence is required before creating card regions.'] };
+  if (name.includes('table') || name.includes('group') || name.includes('lot')) return { type: 'multi_card_table', cardCount: 0, processingStrategy: 'filename_hint', layoutRows: null, layoutColumns: null, difficulty: 'hard', warnings: ['Multi-card layout inferred from filename; detector evidence is required before creating card regions.'] };
   if (name.includes('pack') || name.includes('box') || name.includes('sealed') || name.includes('booster') || name.includes('blaster') || name.includes('hobby') || name.includes('retail') || name.includes('tin') || name.includes('etb')) {
-    return { type: 'sealed_product', cardCount: 1, processingStrategy: 'filename_hint', layoutRows: null, layoutColumns: null, difficulty: 'medium', warnings: ['Sealed product inferred from filename; AI scene detection is recommended for pack/box configuration.'] };
+    return { type: 'sealed_product', cardCount: 0, processingStrategy: 'filename_hint', layoutRows: null, layoutColumns: null, difficulty: 'medium', warnings: ['Sealed product inferred from filename; detector or product evidence is required before creating a region.'] };
   }
   if (!has(body.frontDataUrl) && !has(body.dataUrl) && !has(body.certDataUrl) && has(body.manualText)) {
     return { type: 'manual_text', cardCount: 1, processingStrategy: 'text_only', layoutRows: null, layoutColumns: null, difficulty: 'medium', warnings: [] };
   }
-  return { type: 'single_card', cardCount: 1, processingStrategy: 'single_region', layoutRows: null, layoutColumns: null, difficulty: 'medium', warnings: [] };
+  if (has(body.frontDataUrl) || has(body.dataUrl)) {
+    return {
+      type: 'unknown',
+      cardCount: 0,
+      processingStrategy: 'unverified_image',
+      layoutRows: null,
+      layoutColumns: null,
+      difficulty: 'unknown',
+      warnings: ['No physical-card region has been confirmed for this image.'],
+    };
+  }
+  return { type: 'unknown', cardCount: 0, processingStrategy: 'no_input', layoutRows: null, layoutColumns: null, difficulty: 'unknown', warnings: [] };
 }
 
 function fallbackRegion({ body = {}, vision = null, scene = null } = {}) {
@@ -179,18 +194,78 @@ function fallbackRegion({ body = {}, vision = null, scene = null } = {}) {
   };
 }
 
+function supportsOneCardRegion(source = {}, scene = {}) {
+  const facts = factsFromRegion(source);
+  const cropQuality = normalizeText(source.cropQuality || source.crop_quality || '');
+  const cardType = normalizeText(source.cardType || source.card_type || '');
+  const explicitCount = Number(
+    source.physicalCardCount
+    ?? source.detectedCardCount
+    ?? source.detected_object_count
+    ?? source.cardCount
+    ?? scene.cardCount
+    ?? 0,
+  );
+  const rejected = source.noCard === true
+    || source.isCard === false
+    || cropQuality.includes('no card')
+    || cropQuality.includes('multiple')
+    || cardType === 'non card'
+    || cardType === 'no card'
+    || scene.type === 'no_card';
+  if (rejected) return false;
+
+  const subject = facts.player || facts.subject;
+  const identityAnchors = [facts.year, facts.brand, facts.set, facts.cardNumber, facts.parallel, facts.grader]
+    .filter(Boolean).length;
+  const identitySupported = Boolean(
+    facts.certNumber
+    || (subject && identityAnchors >= 1)
+    || (facts.cardNumber && (facts.brand || facts.set)),
+  );
+  const productSupported = Boolean(
+    (facts.productName || facts.productType || facts.sealedType)
+    && (facts.brand || facts.configuration || facts.upc),
+  );
+  const boundarySupported = Boolean(
+    source.boundingBox
+    || source.box
+    || source.cardBoundary
+    || source.physicalCardDetected === true
+    || source.completeCardVisible === true
+    || cropQuality === 'single card'
+    || cardType === 'raw'
+    || cardType === 'slabbed',
+  );
+
+  return Boolean(
+    facts.certNumber
+    || productSupported
+    || (explicitCount === 1 && (boundarySupported || identitySupported))
+    || (boundarySupported && identitySupported),
+  );
+}
+
 function detectedRegions({ body = {}, sceneAnalysis = null, vision = null, scene = null } = {}) {
   const regions = safeArray(sceneAnalysis?.detectedCards);
   if (regions.length) {
-    return regions.map((region, index) => ({
-      ...fallbackRegion({ body, vision: region, scene }),
-      regionId: clean(region.regionId || region.id || `region_${index + 1}`, 80),
-      boundingBox: normalizeBox(region.boundingBox || region.box),
-    cardType: region.cardType || region.type || (scene?.type === 'sealed_product' ? 'sealed' : region.slabbed ? 'slabbed' : 'raw_or_unknown'),
-      slabbed: Boolean(region.slabbed || region.facts?.grader || region.facts?.certNumber),
-    }));
+    return regions
+      .filter((region) => supportsOneCardRegion(region, { ...scene, cardCount: 1 }))
+      .map((region, index) => ({
+        ...fallbackRegion({ body, vision: region, scene }),
+        regionId: clean(region.regionId || region.id || `region_${index + 1}`, 80),
+        boundingBox: normalizeBox(region.boundingBox || region.box),
+        cardType: region.cardType || region.type || (scene?.type === 'sealed_product' ? 'sealed' : region.slabbed ? 'slabbed' : 'raw_or_unknown'),
+        slabbed: Boolean(region.slabbed || region.facts?.grader || region.facts?.certNumber),
+      }));
   }
-  return [fallbackRegion({ body, vision, scene })];
+  if (scene?.type === 'manual_text' || scene?.type === 'cert_label') {
+    return [fallbackRegion({ body, vision, scene })];
+  }
+  if (supportsOneCardRegion(vision || {}, scene || {})) {
+    return [fallbackRegion({ body, vision, scene })];
+  }
+  return [];
 }
 
 function overlapScore(left = '', right = '') {
@@ -426,10 +501,13 @@ export function recognizeCardScene({
       correctionsImproveFutureRanking: true,
       evidenceBoundedDecisionAvailable: true,
       automaticAcceptanceRequiresCalibration: true,
+      unconfirmedImagesCreateNoRegion: true,
       imagesProcessedRemotely: Boolean(sceneAnalysis),
     },
-    message: primary?.requiresManualConfirmation
-      ? 'ManeFlow found likely card identities, but one or more regions need confirmation before pricing or inventory action.'
-      : 'ManeFlow recognized the visible card region(s). Confirm condition before transacting.',
+    message: !primary
+      ? 'No individual physical card region was confirmed. No card record was created.'
+      : primary.requiresManualConfirmation
+        ? 'ManeFlow found likely card identities, but one or more regions need confirmation before pricing or inventory action.'
+        : 'ManeFlow recognized the visible card region(s). Confirm condition before transacting.',
   };
 }
