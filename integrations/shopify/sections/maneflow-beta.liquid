@@ -1,0 +1,118 @@
+{% liquid
+  assign app_url = section.settings.app_url | default: 'https://app.memphiscardcompany.com'
+  assign login_url = routes.storefront_login_url | default: routes.account_login_url
+%}
+
+<section class="mf-launch" aria-labelledby="mf-launch-title">
+  <div class="mf-launch__glow mf-launch__glow--one" aria-hidden="true"></div>
+  <div class="mf-launch__glow mf-launch__glow--two" aria-hidden="true"></div>
+
+  <div class="mf-launch__inner">
+    <header class="mf-launch__header">
+      <p class="mf-launch__eyebrow">{{ section.settings.eyebrow | escape }}</p>
+      <h1 id="mf-launch-title">{{ section.settings.headline | escape }}</h1>
+      <p class="mf-launch__lede">{{ section.settings.subheadline | escape }}</p>
+    </header>
+
+    <div class="mf-launch__steps" aria-label="ManeFlow workflow">
+      <article><span>01</span><strong>Upload</strong><p>Take a photo, choose images, or select a folder.</p></article>
+      <article><span>02</span><strong>Identify</strong><p>ManeFlow detects cards and creates evidence-backed drafts.</p></article>
+      <article><span>03</span><strong>Price</strong><p>ManeFlow evaluates authorized completed-sale evidence.</p></article>
+      <article><span>04</span><strong>Collect</strong><p>Confirm or correct results, then save them privately.</p></article>
+    </div>
+
+    {% if customer %}
+      <div class="mf-launch__account mf-launch__account--ready">
+        <div>
+          <p class="mf-launch__status"><span aria-hidden="true"></span> Private beta access</p>
+          <h2>Your ManeFlow workspace is ready.</h2>
+          <p>Signed in to Memphis Card Company as <strong>{{ customer.email | escape }}</strong>.</p>
+        </div>
+        <a class="mf-launch__button mf-launch__button--primary" href="{{ app_url | escape }}" rel="noopener">Launch ManeFlow <span aria-hidden="true">→</span></a>
+      </div>
+    {% else %}
+      <div class="mf-launch__account">
+        <div>
+          <p class="mf-launch__status"><span aria-hidden="true"></span> Account required</p>
+          <h2>Sign in before opening ManeFlow.</h2>
+          <p>Shopify customer accounts use one secure flow for both new and returning customers. Your ManeFlow workspace then maintains its own server-side account and privacy controls.</p>
+        </div>
+        <div class="mf-launch__actions">
+          <a class="mf-launch__button mf-launch__button--primary" href="{{ login_url }}" rel="nofollow">Sign in or create account</a>
+          <a class="mf-launch__button mf-launch__button--secondary" href="/pages/contact">Need help?</a>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="mf-launch__trust">
+      <div><strong>Evidence first</strong><span>Results remain drafts until verified.</span></div>
+      <div><strong>Pricing by ManeFlow</strong><span>Completed-sale evidence is separated from asking prices.</span></div>
+      <div><strong>Private by design</strong><span>Collection and cost-basis data are not public.</span></div>
+      <div><strong>Human control</strong><span>Confirm, correct, or leave unresolved.</span></div>
+    </div>
+
+    <footer class="mf-launch__footer">
+      <p>ManeFlow does not authenticate cards, assign professional grades, guarantee values, or identify every variation. Exact details require sufficient evidence and may require human confirmation.</p>
+      <nav aria-label="ManeFlow legal and support links">
+        <a href="/policies/privacy-policy">Privacy</a>
+        <a href="/policies/terms-of-service">Terms</a>
+        <a href="/pages/contact">Support</a>
+        <a href="/pages/contact">Data deletion request</a>
+      </nav>
+    </footer>
+  </div>
+</section>
+
+<style>
+  .mf-launch{--mf-gold:#f4ca4d;--mf-ink:#08090b;--mf-panel:#111318;--mf-line:rgba(255,255,255,.1);position:relative;isolation:isolate;overflow:hidden;background:radial-gradient(circle at 18% 0%,rgba(244,202,77,.11),transparent 33%),linear-gradient(180deg,#08090b 0%,#0b0d10 100%);color:#f7f4eb;padding:clamp(64px,9vw,128px) 20px;font-family:inherit}
+  .mf-launch *{box-sizing:border-box}
+  .mf-launch__inner{position:relative;z-index:2;width:min(1180px,100%);margin:0 auto}
+  .mf-launch__header{max-width:850px;margin:0 auto clamp(38px,6vw,68px);text-align:center}
+  .mf-launch__eyebrow{margin:0 0 14px;color:var(--mf-gold);font-size:.75rem;font-weight:800;letter-spacing:.22em;text-transform:uppercase}
+  .mf-launch h1{margin:0;font-size:clamp(2.5rem,7vw,6.1rem);line-height:.96;letter-spacing:-.045em;text-wrap:balance}
+  .mf-launch__lede{max-width:720px;margin:24px auto 0;color:#c8c9cc;font-size:clamp(1rem,2vw,1.28rem);line-height:1.7;text-wrap:balance}
+  .mf-launch__steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px}
+  .mf-launch__steps article{min-height:188px;padding:26px;border:1px solid var(--mf-line);border-radius:18px;background:linear-gradient(150deg,rgba(255,255,255,.055),rgba(255,255,255,.018));box-shadow:0 16px 50px rgba(0,0,0,.2)}
+  .mf-launch__steps span{display:block;margin-bottom:32px;color:var(--mf-gold);font-size:.72rem;font-weight:800;letter-spacing:.18em}
+  .mf-launch__steps strong{display:block;font-size:1.15rem}
+  .mf-launch__steps p{margin:10px 0 0;color:#aeb0b5;line-height:1.55;font-size:.94rem}
+  .mf-launch__account{display:flex;align-items:center;justify-content:space-between;gap:32px;padding:clamp(28px,5vw,48px);border:1px solid rgba(244,202,77,.28);border-radius:22px;background:linear-gradient(135deg,rgba(244,202,77,.11),rgba(255,255,255,.025));box-shadow:0 26px 80px rgba(0,0,0,.35)}
+  .mf-launch__account h2{margin:7px 0 8px;font-size:clamp(1.55rem,3vw,2.35rem);letter-spacing:-.025em}
+  .mf-launch__account p{max-width:680px;margin:0;color:#bec0c5;line-height:1.6}
+  .mf-launch__status{display:flex;align-items:center;gap:9px;color:var(--mf-gold)!important;font-size:.76rem;font-weight:800;letter-spacing:.11em;text-transform:uppercase}
+  .mf-launch__status span{width:8px;height:8px;border-radius:50%;background:var(--mf-gold);box-shadow:0 0 18px rgba(244,202,77,.75)}
+  .mf-launch__actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+  .mf-launch__button{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:52px;padding:0 25px;border-radius:999px;text-decoration:none!important;font-weight:800;white-space:nowrap;transition:transform .2s ease,box-shadow .2s ease,background .2s ease}
+  .mf-launch__button:hover{transform:translateY(-2px)}
+  .mf-launch__button--primary{background:var(--mf-gold);color:#0a0a0a!important;box-shadow:0 12px 32px rgba(244,202,77,.19)}
+  .mf-launch__button--secondary{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);color:#fff!important}
+  .mf-launch__trust{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin-top:30px;overflow:hidden;border:1px solid var(--mf-line);border-radius:18px;background:var(--mf-line)}
+  .mf-launch__trust div{padding:23px;background:#0d0f12}
+  .mf-launch__trust strong,.mf-launch__trust span{display:block}
+  .mf-launch__trust strong{margin-bottom:7px;color:#f4f1e7;font-size:.92rem}
+  .mf-launch__trust span{color:#96999f;font-size:.82rem;line-height:1.5}
+  .mf-launch__footer{display:flex;justify-content:space-between;gap:28px;margin-top:34px;padding-top:24px;border-top:1px solid var(--mf-line);color:#85888f;font-size:.78rem;line-height:1.55}
+  .mf-launch__footer p{max-width:720px;margin:0}
+  .mf-launch__footer nav{display:flex;gap:17px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end}
+  .mf-launch__footer a{color:#b9bbc0;text-decoration:none}
+  .mf-launch__footer a:hover{color:var(--mf-gold)}
+  .mf-launch__glow{position:absolute;z-index:1;border-radius:50%;filter:blur(90px);opacity:.22;pointer-events:none}
+  .mf-launch__glow--one{width:360px;height:360px;top:-160px;right:-110px;background:#d4a900}
+  .mf-launch__glow--two{width:280px;height:280px;bottom:-140px;left:-100px;background:#715a00}
+  @media (max-width:900px){.mf-launch__steps,.mf-launch__trust{grid-template-columns:repeat(2,minmax(0,1fr))}.mf-launch__account{align-items:flex-start;flex-direction:column}.mf-launch__actions{justify-content:flex-start}.mf-launch__footer{flex-direction:column}.mf-launch__footer nav{justify-content:flex-start}}
+  @media (max-width:560px){.mf-launch{padding-inline:14px}.mf-launch__steps,.mf-launch__trust{grid-template-columns:1fr}.mf-launch__steps article{min-height:auto}.mf-launch__steps span{margin-bottom:22px}.mf-launch__account{padding:26px 20px}.mf-launch__actions,.mf-launch__button{width:100%}}
+  @media (prefers-reduced-motion:reduce){.mf-launch__button{transition:none}}
+</style>
+
+{% schema %}
+{
+  "name": "ManeFlow launch",
+  "settings": [
+    {"type":"text","id":"app_url","label":"ManeFlow app URL","default":"https://app.memphiscardcompany.com"},
+    {"type":"text","id":"eyebrow","label":"Eyebrow","default":"MEMPHIS CARD COMPANY · MANEFLOW"},
+    {"type":"text","id":"headline","label":"Headline","default":"Scan. Identify. Price. Collect."},
+    {"type":"textarea","id":"subheadline","label":"Subheadline","default":"Photograph one card, a slab, a binder page, or a full folder. ManeFlow creates conservative draft identifications, estimates current market value, and saves verified cards to your private collection."}
+  ],
+  "presets": [{"name":"ManeFlow launch"}]
+}
+{% endschema %}
