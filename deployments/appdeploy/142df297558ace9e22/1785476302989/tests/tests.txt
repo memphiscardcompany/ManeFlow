@@ -1,0 +1,80 @@
+# Tests
+
+## Test 1 - Repeated image selections append to one queue [sanity]
+Viewport: desktop
+Covers: unified upload surface, repeated file selection, visible queue count
+Description: Verifies every file-picker selection appends to the same queue, including repeated views with identical file metadata.
+Steps:
+1. Open ManeFlow Scan
+2. Confirm Add card images is visible with Take photo, Choose files, and Choose folder actions
+3. Use Choose files to add one image
+4. Use Choose files again to add another image, including the same image when needed
+Expected: The queue count increases to 2 and the combined file size is visible without switching scanner modes.
+
+## Test 2 - Unsupported files are rejected safely
+Viewport: desktop
+Covers: image filtering, visible validation, queue preservation
+Description: Verifies unsupported files do not create card records or remove valid queued images.
+Steps:
+1. Open ManeFlow Scan
+2. Add one valid image
+3. Attempt to add a non-image file
+4. Confirm a visible rejection message appears
+Expected: The valid image remains queued and the unsupported file is skipped.
+
+## Test 3 - Large queues process progressively and can stop safely
+Viewport: desktop
+Covers: multiple uploads, progressive processing, queue progress, stop control
+Description: Verifies a multi-image queue processes incrementally rather than as one oversized browser request.
+Steps:
+1. Open ManeFlow Scan
+2. Add multiple card images with Choose files
+3. Start the scan
+4. Confirm progress displays the current image and total count
+5. Choose Stop after current image
+Expected: Processing stops after the active image, completed results remain visible, and the selected source images remain available in the queue.
+
+## Test 4 - A selected image reaches a reviewable card result
+Viewport: desktop
+Covers: card detection, image recognition, conservative fallback
+Description: Verifies the unified uploader sends a selected image through card detection and returns a reviewable result.
+Steps:
+1. Add one card image
+2. Start the scan
+3. Wait for detection and recognition to finish
+4. Confirm at least one card result appears
+Expected: ManeFlow displays a separated card record or a clearly marked review result instead of silently dropping the image.
+
+## Test 5 - Mobile camera workflow stays focused
+Viewport: mobile
+Covers: camera intake, responsive layout, installation control
+Description: Verifies the scanner remains usable on a narrow screen with one unified intake experience.
+Steps:
+1. Open ManeFlow Scan on a mobile viewport
+2. Confirm Install ManeFlow and Add card images are visible
+3. Choose Take photo
+4. Confirm the captured image enters the same queue
+Expected: Camera intake, queue controls, and results fit the viewport without horizontal overflow or separate scanner modes.
+
+## Test 6 - Collection review actions stay reachable
+Viewport: desktop
+Covers: collection review modal, editable card fields, persistent save action
+Description: Verifies the review dialog keeps its save controls visible while long card details scroll independently.
+Steps:
+1. Open Collection and add or open a card record
+2. Choose Review / Edit
+3. Enter a player name and set or year
+4. Scroll through the card details
+5. Choose Save reviewed card from the visible modal footer
+Expected: The review dialog closes, the edited card remains in Collection, and the save action is reachable without scrolling the page behind the modal.
+
+## Test 7 - Cloud scan history is optional
+Viewport: desktop
+Covers: signed-out scanning, optional sign-in, compact cloud controls
+Description: Verifies scanning works without an account while cloud history remains an explicit optional action.
+Steps:
+1. Open ManeFlow Scan while signed out
+2. Confirm scanning controls remain enabled
+3. Confirm Sync scans across devices is visible
+4. Sign in and open Cloud scan history
+Expected: Scanning works locally before sign-in, while scan retention and learning permission remain explicit account controls.
