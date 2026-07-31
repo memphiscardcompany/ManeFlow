@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="auth-pending">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -13,6 +13,14 @@
     *{box-sizing:border-box}
     body{background:radial-gradient(circle at 50% -10%,#17354a 0,#081421 42%,var(--bg) 78%);color:var(--text);margin:0;min-height:100vh;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     button,input{font:inherit}
+    .auth-pending .intake-shell{display:none}
+    .auth-gate{min-height:100vh;display:grid;place-items:center;padding:24px}
+    .auth-gate-card{width:min(560px,100%);border:1px solid #1c3b51;border-radius:28px;padding:34px;background:linear-gradient(180deg,rgba(10,27,42,.98),rgba(7,20,32,.99));box-shadow:0 28px 90px rgba(0,0,0,.32);text-align:center}
+    .auth-gate-mark{width:58px;height:58px;border-radius:18px;margin:0 auto 18px;display:grid;place-items:center;background:#0b3148;border:1px solid #245f7f;color:var(--accent-2);font-size:1.55rem;font-weight:900}
+    .auth-gate h1{margin:.4rem 0 .8rem;font-size:clamp(2rem,7vw,3.3rem);line-height:1;letter-spacing:-.045em}
+    .auth-gate p{color:var(--muted);line-height:1.65;margin:0 auto;max-width:450px}
+    .auth-gate a{display:inline-flex;margin-top:22px;color:white;background:linear-gradient(135deg,#0f8fca,#13a9e7);border:1px solid #26b7f1;border-radius:12px;padding:12px 18px;text-decoration:none;font-weight:800}
+    .auth-ready .auth-gate{display:none}
     .intake-shell{width:min(1180px,calc(100% - 28px));margin:0 auto;padding:28px 0 80px}
     .intake-head{display:flex;align-items:flex-start;justify-content:space-between;gap:22px;margin-bottom:22px}
     .intake-head a{color:inherit;text-decoration:none}
@@ -56,10 +64,19 @@
     .notice-local.error{border-color:#754949;background:#241313;color:#ffc2c2}.notice-local.success{border-color:#3e704f;background:#10271a;color:#bceacb}
     .actions-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}
     .privacy-copy{font-size:.86rem;color:#7893a7;line-height:1.5;margin-top:14px}
-    @media(max-width:820px){.intake-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,1fr)}.intake-head{align-items:flex-start;flex-direction:column}.intake-shell{width:min(100% - 20px,1180px);padding-top:18px}.drop-zone{min-height:270px;padding:24px 16px}.file-actions .button{flex:1 1 145px}}
+    @media(max-width:820px){.intake-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,1fr)}.intake-head{align-items:flex-start;flex-direction:column}.intake-shell{width:min(100% - 20px,1180px);padding-top:18px}.drop-zone{min-height:270px;padding:24px 16px}.file-actions .button{flex:1 1 145px}.auth-gate-card{padding:28px 22px}}
   </style>
 </head>
 <body>
+  <section id="auth-gate" class="auth-gate" aria-live="polite">
+    <div class="auth-gate-card">
+      <div class="auth-gate-mark" aria-hidden="true">M</div>
+      <div class="eyebrow">ManeFlow private beta</div>
+      <h1>Checking account access</h1>
+      <p>Card photos, scan results, and collection records are available only inside a signed-in ManeFlow account.</p>
+    </div>
+  </section>
+
   <main class="intake-shell">
     <header class="intake-head">
       <div class="intake-title">
@@ -117,6 +134,21 @@
       </aside>
     </div>
   </main>
-  <script type="module" src="/unified-intake.js"></script>
+  <script type="module">
+    const gate = document.querySelector('#auth-gate');
+    try {
+      const response = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+      const account = await response.json().catch(() => ({}));
+      if (!response.ok || !account.authenticated) {
+        location.replace('/#/account');
+      } else {
+        document.documentElement.classList.remove('auth-pending');
+        document.documentElement.classList.add('auth-ready');
+        await import('/unified-intake.js');
+      }
+    } catch {
+      gate.innerHTML = '<div class="auth-gate-card"><div class="auth-gate-mark" aria-hidden="true">M</div><div class="eyebrow">ManeFlow private beta</div><h1>Account check unavailable</h1><p>ManeFlow could not verify your secure session. No card-upload controls were opened.</p><a href="/#/account">Return to sign in</a></div>';
+    }
+  </script>
 </body>
 </html>
