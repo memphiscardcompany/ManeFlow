@@ -68,6 +68,7 @@ def detector_readiness() -> dict[str, object]:
         },
         "classical_fallback_available": True,
         "high_recall_recovery_available": True,
+        "high_recall_recovery_enabled": settings.high_recall_recovery_enabled,
     }
 
 
@@ -97,10 +98,12 @@ def detect_card_objects(
 
     # Preserve the strict contour detector as the normal local path. When callers
     # explicitly allow single-image recovery and the primary detector finds no
-    # region, run the bounded review-only recovery detector instead of the old
-    # permissive whole-image fallback. Recovery detections are capped below exact
-    # identity thresholds and carry an explicit review-only kind hint.
+    # region, the disabled-by-default feature flag may route to the bounded
+    # review-only recovery detector. Until promotion gates pass, the established
+    # conservative whole-image fallback remains the default behavior.
     classical = detect_cards(image, allow_whole_image_fallback=False)
     if classical or not allow_whole_image_fallback:
         return classical
+    if not settings.high_recall_recovery_enabled:
+        return detect_cards(image, allow_whole_image_fallback=True)
     return recover_card_objects(image)
