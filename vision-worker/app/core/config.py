@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     card_detector_model_path: str | None = None
     card_detector_confidence: float = 0.35
     card_detector_iou: float = 0.50
+    high_recall_recovery_enabled: bool = False
 
     roboflow_detection_enabled: bool = False
     roboflow_model_endpoint: str | None = None
