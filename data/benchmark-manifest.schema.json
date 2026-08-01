@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maneflow.local/schemas/benchmark-manifest-row-v1.json",
+  "title": "ManeFlow Benchmark Manifest Row V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "manifest_version",
+    "asset_id",
+    "source_path",
+    "source_type",
+    "sha256",
+    "mime_type",
+    "byte_size",
+    "rights_status",
+    "retention_policy",
+    "training_use_allowed",
+    "scene_label",
+    "physical_card_group_id",
+    "identity_label_status",
+    "annotation_status",
+    "split",
+    "locked"
+  ],
+  "properties": {
+    "manifest_version": { "const": "maneflow-benchmark-v1" },
+    "asset_id": { "type": "string", "pattern": "^asset_[a-f0-9]{24}$" },
+    "source_path": { "type": "string", "minLength": 1 },
+    "source_type": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "perceptual_hash": { "type": ["string", "null"] },
+    "mime_type": {
+      "enum": [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+        "image/tiff"
+      ]
+    },
+    "byte_size": { "type": "integer", "minimum": 1 },
+    "width": { "type": ["integer", "null"], "minimum": 1 },
+    "height": { "type": ["integer", "null"], "minimum": 1 },
+    "orientation": { "type": ["integer", "null"] },
+    "rights_status": {
+      "enum": [
+        "owner-controlled",
+        "explicitly-licensed",
+        "partner-approved",
+        "public-domain",
+        "permissive-open-license",
+        "transient-evaluation",
+        "terms-unclear",
+        "prohibited"
+      ]
+    },
+    "retention_policy": {
+      "enum": ["private_manifest_controlled", "delete_after_evaluation"]
+    },
+    "training_use_allowed": { "type": "boolean" },
+    "scene_label": { "type": "string", "minLength": 1 },
+    "expected_card_count": { "type": ["integer", "null"], "minimum": 0 },
+    "physical_card_group_id": { "type": "string", "minLength": 1 },
+    "identity_label_status": { "type": "string", "minLength": 1 },
+    "annotation_status": { "type": "string", "minLength": 1 },
+    "split": {
+      "enum": ["unassigned", "train", "validation", "calibration", "test", "locked_test"]
+    },
+    "locked": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "rights_status": {
+            "enum": ["transient-evaluation", "terms-unclear", "prohibited"]
+          }
+        },
+        "required": ["rights_status"]
+      },
+      "then": {
+        "properties": {
+          "training_use_allowed": { "const": false }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "split": { "const": "locked_test" } },
+        "required": ["split"]
+      },
+      "then": {
+        "properties": { "locked": { "const": true } }
+      }
+    }
+  ]
+}
