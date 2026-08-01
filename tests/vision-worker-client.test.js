@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import test from 'node:test';
 import { VisionWorkerClient, workerCardToLegacyVision } from '../src/services/vision-worker-client.js';
+import { parseRetryAfterMs } from '../src/services/vision-retry-policy.js';
 
 async function withServer(handler, run) {
   const server = http.createServer(handler);
@@ -41,6 +42,75 @@ test('vision worker client sends image data URLs as multipart scans', async () =
     const result = await client.scanDataUrl('data:image/jpeg;base64,aGVsbG8=', { filename: 'scan.jpg' });
     assert.equal(result.scan_id, 'scan-1');
   });
+});
+
+test('retry policy supports numeric and HTTP-date Retry-After values', () => {
+  const now = Date.UTC(2026, 7, 1, 12, 0, 0);
+  assert.equal(parseRetryAfterMs('2', { now }), 2_000);
+  assert.equal(parseRetryAfterMs(new Date(now + 5_000).toUTCString(), { now }), 5_000);
+  assert.equal(parseRetryAfterMs('invalid', { now }), null);
+  assert.equal(parseRetryAfterMs('90', { now }), 15_000);
+});
+
+test('vision worker scan retries a transient rate limit with a fresh body', async () => {
+  let attempts = 0;
+  const delays = [];
+  const idempotencyKeys = new Set();
+
+  await withServer((req, res) => {
+    attempts += 1;
+    idempotencyKeys.add(req.headers['x-maneflow-idempotency-key']);
+    req.resume();
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json');
+      if (attempts === 1) {
+        res.statusCode = 429;
+        res.setHeader('retry-after', '1');
+        res.end(JSON.stringify({ detail: 'capacity limited' }));
+        return;
+      }
+      res.end(JSON.stringify({ scan_id: 'scan-retried', identity_confidence: 0 }));
+    });
+  }, async (baseUrl) => {
+    const client = new VisionWorkerClient({
+      baseUrl,
+      timeoutMs: 2000,
+      maxRetries: 1,
+      sleepFn: async (milliseconds) => { delays.push(milliseconds); },
+    });
+    const result = await client.scanDataUrl('data:image/jpeg;base64,aGVsbG8=');
+    assert.equal(result.scan_id, 'scan-retried');
+  });
+
+  assert.equal(attempts, 2);
+  assert.equal(idempotencyKeys.size, 1);
+  assert.equal(delays.length, 1);
+  assert.ok(delays[0] >= 900 && delays[0] <= 1_000);
+});
+
+test('vision worker scan single-flight shares identical concurrent work', async () => {
+  let requests = 0;
+
+  await withServer((req, res) => {
+    requests += 1;
+    req.resume();
+    req.on('end', () => {
+      setTimeout(() => {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ scan_id: 'single-flight', identity_confidence: 0 }));
+      }, 25);
+    });
+  }, async (baseUrl) => {
+    const client = new VisionWorkerClient({ baseUrl, timeoutMs: 2000 });
+    const [first, second] = await Promise.all([
+      client.scanDataUrl('data:image/jpeg;base64,c2FtZS1pbWFnZQ=='),
+      client.scanDataUrl('data:image/jpeg;base64,c2FtZS1pbWFnZQ=='),
+    ]);
+    assert.equal(first.scan_id, 'single-flight');
+    assert.equal(second.scan_id, 'single-flight');
+  });
+
+  assert.equal(requests, 1);
 });
 
 test('worker card extraction maps into the legacy ManeFlow evidence contract', () => {
@@ -94,7 +164,6 @@ test('vision worker client lists and curates contributed examples', async () => 
     assert.equal(curated.curation_status, 'approved');
   });
 });
-
 
 test('vision worker client reads the approved dataset manifest', async () => {
   await withServer((req, res) => {
