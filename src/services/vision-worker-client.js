@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { validateVisionExtractionResult } from '../contracts/visionExtractionContract.js';
 import {
   exponentialRetryDelayMs,
@@ -27,6 +27,10 @@ function imageDigest(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+function privateIdempotencyKey(bytes, secret) {
+  return createHmac('sha256', secret).update(bytes).digest('hex');
+}
+
 async function responsePayload(response) {
   const contentType = response.headers.get('content-type') || '';
   if (contentType.includes('application/json')) return response.json();
@@ -50,6 +54,7 @@ export class VisionWorkerClient {
     retryMaxMs = 15_000,
     sleepFn = sleep,
     nowFn = Date.now,
+    idempotencySecret = randomBytes(32),
   } = {}) {
     this.baseUrl = cleanBaseUrl(baseUrl);
     this.timeoutMs = timeoutMs;
@@ -60,6 +65,10 @@ export class VisionWorkerClient {
     this.nowFn = nowFn;
     this.cooldownUntil = 0;
     this.inflightScans = new Map();
+    const suppliedSecret = Buffer.isBuffer(idempotencySecret)
+      ? idempotencySecret
+      : Buffer.from(String(idempotencySecret || ''), 'utf8');
+    this.idempotencySecret = suppliedSecret.length ? suppliedSecret : randomBytes(32);
   }
 
   async waitForSharedCooldown() {
@@ -119,9 +128,10 @@ export class VisionWorkerClient {
     const existing = this.inflightScans.get(singleFlightKey);
     if (existing) return existing;
 
+    const idempotencyKey = privateIdempotencyKey(bytes, this.idempotencySecret);
     const operation = this.request('/v1/scan', {
       method: 'POST',
-      headers: { 'x-maneflow-idempotency-key': digest },
+      headers: { 'x-maneflow-idempotency-key': idempotencyKey },
       bodyFactory: () => {
         const form = new FormData();
         form.append('image', new Blob([bytes], { type: mediaType }), filename);
