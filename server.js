@@ -15,6 +15,7 @@ import { createScanPipeline } from './src/services/scan-pipeline.js';
 import { createDurableScanJobRouter } from './src/scan-job-router.js';
 import { createAutomaticPricingEngine } from './src/services/automatic-pricing.js';
 import { createAutomaticPricingRouter } from './src/automatic-pricing-router.js';
+import { createReleaseProvenanceRouter } from './src/release-provenance-router.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -107,6 +108,7 @@ const ocrService = new LightOcrService({
   queueCapacity: config.localOcrQueueCapacity,
   timeoutMs: config.localOcrTimeoutMs,
 });
+const releaseProvenanceRouter = createReleaseProvenanceRouter({ config, env: process.env });
 const coreRouter = createRouter({ config, cards, sales, providers, store, cache, runtimeValidation, storage, ocrService, databaseRuntime });
 const metaOwnerRouter = createMetaOwnerRouter({ config, store, databaseRuntime });
 const scanPipeline = createScanPipeline({ config, cards, sales, store, cache, ocrService, databaseRuntime });
@@ -139,6 +141,8 @@ if (typeof store.deleteUser === 'function' && typeof scanJobRuntime.spool.delete
 
 const router = async (req, res) => {
   try {
+    const releaseHandled = await releaseProvenanceRouter(req, res);
+    if (releaseHandled || res.writableEnded) return;
     const metaHandled = await metaOwnerRouter(req, res);
     if (metaHandled || res.writableEnded) return;
     const scanJobHandled = await scanJobRuntime.handle(req, res);
