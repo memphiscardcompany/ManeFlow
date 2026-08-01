@@ -1,6 +1,10 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { validateVisionExtractionResult } from '../contracts/visionExtractionContract.js';
 import {
+  AdaptiveConcurrencyController,
+  runAdaptiveBatch,
+} from './adaptive-batch-scheduler.js';
+import {
   exponentialRetryDelayMs,
   isTransientVisionStatus,
   parseRetryAfterMs,
@@ -45,6 +49,56 @@ function visionWorkerError(response, payload) {
   return error;
 }
 
+function hasIdentityEvidence(payload) {
+  const card = payload?.predicted_card || {};
+  return [
+    card.player_name,
+    card.character_name,
+    card.year,
+    card.brand,
+    card.set_name,
+    card.card_number,
+    card.parallel,
+    card.cert_number,
+  ].some((value) => value !== null && value !== undefined && String(value).trim() !== '');
+}
+
+export function classifyWorkerScanResult(payload) {
+  const detectedObjectCount = Math.max(
+    0,
+    Math.round(Number(payload?.detected_object_count || 0)),
+  );
+  const identityConfidence = Number(payload?.identity_confidence || 0);
+  const state = String(
+    payload?.pipeline_state
+      || payload?.scene_type
+      || payload?.status
+      || '',
+  ).trim().toLowerCase();
+  const explicitNoCard = [
+    'no_card',
+    'no-card',
+    'no card',
+    'rejected_no_card',
+  ].includes(state);
+
+  if (detectedObjectCount > 0) {
+    return {
+      terminalState: hasIdentityEvidence(payload) && identityConfidence >= 0.85
+        ? 'detected'
+        : 'review_required',
+      result: payload,
+    };
+  }
+  if (hasIdentityEvidence(payload)) {
+    return { terminalState: 'review_required', result: payload };
+  }
+  if (explicitNoCard) {
+    return { terminalState: 'rejected_no_card', result: payload };
+  }
+  return { terminalState: 'insufficient_evidence', result: payload };
+}
+
 export class VisionWorkerClient {
   constructor({
     baseUrl = 'http://127.0.0.1:8741',
@@ -82,6 +136,7 @@ export class VisionWorkerClient {
       retryable = false,
       maxRetries = this.maxRetries,
       bodyFactory = null,
+      onTransientFault = null,
       ...fetchOptions
     } = options;
 
@@ -98,10 +153,19 @@ export class VisionWorkerClient {
       const payload = await responsePayload(response);
       if (response.ok) return payload;
 
+      const error = visionWorkerError(response, payload);
       const mayRetry = retryable
         && attempt < maxRetries
         && isTransientVisionStatus(response.status);
-      if (!mayRetry) throw visionWorkerError(response, payload);
+      if (!mayRetry) throw error;
+
+      if (typeof onTransientFault === 'function') {
+        try {
+          onTransientFault(error);
+        } catch {
+          // Scheduler observers must not prevent the bounded retry policy.
+        }
+      }
 
       const providerDelay = parseRetryAfterMs(response.headers.get('retry-after'), {
         now: this.nowFn(),
@@ -121,7 +185,10 @@ export class VisionWorkerClient {
   health() { return this.request('/health', { timeoutMs: 5_000 }); }
   readiness() { return this.request('/readiness', { timeoutMs: 8_000 }); }
 
-  async scanDataUrl(dataUrl, { filename = 'card-scan.jpg' } = {}) {
+  async scanDataUrl(dataUrl, {
+    filename = 'card-scan.jpg',
+    onTransientFault = null,
+  } = {}) {
     const { mediaType, bytes } = parseDataUrl(dataUrl);
     const digest = imageDigest(bytes);
     const singleFlightKey = `${mediaType}:${digest}`;
@@ -138,6 +205,7 @@ export class VisionWorkerClient {
         return form;
       },
       retryable: true,
+      onTransientFault,
     }).then((payload) => {
       if (payload?.contract_version) validateVisionExtractionResult(payload);
       return payload;
@@ -147,6 +215,45 @@ export class VisionWorkerClient {
 
     this.inflightScans.set(singleFlightKey, operation);
     return operation;
+  }
+
+  async scanDataUrls(images, {
+    initialConcurrency = 4,
+    minimumConcurrency = 1,
+    maximumConcurrency = 8,
+    healthyWindow = 20,
+    queueGenerationId = undefined,
+    onProgress = null,
+    shouldStop = null,
+    controller = null,
+  } = {}) {
+    if (!Array.isArray(images) || images.length === 0) {
+      throw new Error('At least one scan image is required.');
+    }
+    const adaptiveController = controller || new AdaptiveConcurrencyController({
+      initialConcurrency,
+      minimumConcurrency,
+      maximumConcurrency,
+      healthyWindow,
+    });
+
+    return runAdaptiveBatch({
+      items: images,
+      controller: adaptiveController,
+      queueGenerationId,
+      onProgress,
+      shouldStop,
+      nowFn: this.nowFn,
+      worker: (entry, context) => {
+        const source = typeof entry === 'string' ? { dataUrl: entry } : entry;
+        if (!source?.dataUrl) throw new Error('Each scan image requires a dataUrl.');
+        return this.scanDataUrl(source.dataUrl, {
+          filename: source.filename || context.filename,
+          onTransientFault: (error) => adaptiveController.recordFault(error),
+        });
+      },
+      classifyResult: classifyWorkerScanResult,
+    });
   }
 
   async analyzeLotDataUrls({ images, listingPrice, inboundShipping = 0, salesTax = 0, sourceType = 'desktop_upload', sourceUrl = null, marketplaceFeeRate, paymentFeeFixed, outboundShippingPerItem = 0, targetRoi } = {}) {
