@@ -9,10 +9,10 @@ Reduce duplicate scan work and make transient vision-worker capacity failures re
 For `scanDataUrl`:
 
 1. Decode the data URL once.
-2. Compute a SHA-256 digest of the image bytes.
-3. Use the digest as an in-process single-flight key.
-4. Share one active promise among concurrent identical scan requests.
-5. Attach the digest as an idempotency key for the worker boundary.
+2. Compute an in-process SHA-256 digest for single-flight coordination.
+3. Share one active promise among concurrent identical scan requests.
+4. Derive a scoped HMAC-SHA-256 idempotency key from the image bytes.
+5. Send the HMAC value—not the raw image digest—across the worker boundary.
 6. Rebuild multipart form data for each retry attempt.
 7. Retry only transient `429`, `502`, `503`, and `504` responses.
 8. Honor numeric or HTTP-date `Retry-After` values.
@@ -28,7 +28,10 @@ Completed results are not cached by this subsystem. Persistent, tenant-aware res
 - Non-transient errors fail immediately.
 - Other mutation endpoints are not automatically retried.
 - Multipart request bodies are reconstructed for every attempt.
-- SHA-256 digests are used as request coordination keys, not identity evidence.
+- Raw SHA-256 digests stay in process and are used only as request-coordination keys.
+- The worker-facing idempotency value is an HMAC scoped by a process- or tenant-specific secret.
+- Different scopes produce different idempotency values for identical image bytes.
+- HMAC values and digests are coordination metadata, not card-identity evidence.
 - No customer image bytes are written to logs or shared storage by this change.
 
 ## Tests
@@ -39,7 +42,8 @@ The focused test coverage verifies:
 - HTTP-date `Retry-After` parsing;
 - delay bounding;
 - a fresh multipart body on retry;
-- stable idempotency key across attempts;
+- a stable scoped idempotency key across attempts;
+- different idempotency scopes for identical image bytes;
 - one worker request for concurrent identical scans;
 - existing error and evidence-contract behavior.
 
