@@ -1,4 +1,10 @@
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { validateVisionExtractionResult } from '../contracts/visionExtractionContract.js';
+import {
+  exponentialRetryDelayMs,
+  isTransientVisionStatus,
+  parseRetryAfterMs,
+} from './vision-retry-policy.js';
 
 function cleanBaseUrl(value) {
   return String(value || 'http://127.0.0.1:8741').replace(/\/+$/, '');
@@ -13,29 +19,103 @@ function parseDataUrl(dataUrl) {
   };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function imageDigest(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function privateIdempotencyKey(bytes, secret) {
+  return createHmac('sha256', secret).update(bytes).digest('hex');
+}
+
 async function responsePayload(response) {
   const contentType = response.headers.get('content-type') || '';
   if (contentType.includes('application/json')) return response.json();
   return response.text();
 }
 
+function visionWorkerError(response, payload) {
+  const detail = payload?.detail || payload?.message || String(payload || `HTTP ${response.status}`);
+  const error = new Error(`ManeFlow vision worker: ${detail}`);
+  error.status = response.status;
+  error.retryAfter = response.headers.get('retry-after');
+  return error;
+}
+
 export class VisionWorkerClient {
-  constructor({ baseUrl = 'http://127.0.0.1:8741', timeoutMs = 120_000 } = {}) {
+  constructor({
+    baseUrl = 'http://127.0.0.1:8741',
+    timeoutMs = 120_000,
+    maxRetries = 2,
+    retryBaseMs = 250,
+    retryMaxMs = 15_000,
+    sleepFn = sleep,
+    nowFn = Date.now,
+    idempotencySecret = randomBytes(32),
+  } = {}) {
     this.baseUrl = cleanBaseUrl(baseUrl);
     this.timeoutMs = timeoutMs;
+    this.maxRetries = Math.max(0, Math.floor(Number(maxRetries) || 0));
+    this.retryBaseMs = Math.max(1, Math.floor(Number(retryBaseMs) || 250));
+    this.retryMaxMs = Math.max(this.retryBaseMs, Math.floor(Number(retryMaxMs) || 15_000));
+    this.sleepFn = sleepFn;
+    this.nowFn = nowFn;
+    this.cooldownUntil = 0;
+    this.inflightScans = new Map();
+    const suppliedSecret = Buffer.isBuffer(idempotencySecret)
+      ? idempotencySecret
+      : Buffer.from(String(idempotencySecret || ''), 'utf8');
+    this.idempotencySecret = suppliedSecret.length ? suppliedSecret : randomBytes(32);
+  }
+
+  async waitForSharedCooldown() {
+    const remaining = Math.max(0, this.cooldownUntil - this.nowFn());
+    if (remaining > 0) await this.sleepFn(remaining);
   }
 
   async request(path, options = {}) {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      signal: AbortSignal.timeout(options.timeoutMs || this.timeoutMs),
-    });
-    const payload = await responsePayload(response);
-    if (!response.ok) {
-      const detail = payload?.detail || payload?.message || String(payload || `HTTP ${response.status}`);
-      throw new Error(`ManeFlow vision worker: ${detail}`);
+    const {
+      timeoutMs = this.timeoutMs,
+      retryable = false,
+      maxRetries = this.maxRetries,
+      bodyFactory = null,
+      ...fetchOptions
+    } = options;
+
+    let attempt = 0;
+    while (true) {
+      await this.waitForSharedCooldown();
+      const requestOptions = {
+        ...fetchOptions,
+        signal: AbortSignal.timeout(timeoutMs),
+      };
+      if (bodyFactory) requestOptions.body = bodyFactory();
+
+      const response = await fetch(`${this.baseUrl}${path}`, requestOptions);
+      const payload = await responsePayload(response);
+      if (response.ok) return payload;
+
+      const mayRetry = retryable
+        && attempt < maxRetries
+        && isTransientVisionStatus(response.status);
+      if (!mayRetry) throw visionWorkerError(response, payload);
+
+      const providerDelay = parseRetryAfterMs(response.headers.get('retry-after'), {
+        now: this.nowFn(),
+        minimumMs: 1_000,
+        maximumMs: this.retryMaxMs,
+      });
+      const fallbackDelay = exponentialRetryDelayMs(attempt, {
+        baseMs: this.retryBaseMs,
+        maximumMs: this.retryMaxMs,
+      });
+      const delayMs = providerDelay ?? fallbackDelay;
+      this.cooldownUntil = Math.max(this.cooldownUntil, this.nowFn() + delayMs);
+      attempt += 1;
     }
-    return payload;
   }
 
   health() { return this.request('/health', { timeoutMs: 5_000 }); }
@@ -43,11 +123,30 @@ export class VisionWorkerClient {
 
   async scanDataUrl(dataUrl, { filename = 'card-scan.jpg' } = {}) {
     const { mediaType, bytes } = parseDataUrl(dataUrl);
-    const form = new FormData();
-    form.append('image', new Blob([bytes], { type: mediaType }), filename);
-    const payload = await this.request('/v1/scan', { method: 'POST', body: form });
-    if (payload?.contract_version) validateVisionExtractionResult(payload);
-    return payload;
+    const digest = imageDigest(bytes);
+    const singleFlightKey = `${mediaType}:${digest}`;
+    const existing = this.inflightScans.get(singleFlightKey);
+    if (existing) return existing;
+
+    const idempotencyKey = privateIdempotencyKey(bytes, this.idempotencySecret);
+    const operation = this.request('/v1/scan', {
+      method: 'POST',
+      headers: { 'x-maneflow-idempotency-key': idempotencyKey },
+      bodyFactory: () => {
+        const form = new FormData();
+        form.append('image', new Blob([bytes], { type: mediaType }), filename);
+        return form;
+      },
+      retryable: true,
+    }).then((payload) => {
+      if (payload?.contract_version) validateVisionExtractionResult(payload);
+      return payload;
+    }).finally(() => {
+      this.inflightScans.delete(singleFlightKey);
+    });
+
+    this.inflightScans.set(singleFlightKey, operation);
+    return operation;
   }
 
   async analyzeLotDataUrls({ images, listingPrice, inboundShipping = 0, salesTax = 0, sourceType = 'desktop_upload', sourceUrl = null, marketplaceFeeRate, paymentFeeFixed, outboundShippingPerItem = 0, targetRoi } = {}) {
