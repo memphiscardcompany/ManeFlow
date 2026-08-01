@@ -152,13 +152,15 @@ export async function buildBenchmarkManifest({
   for (const filePath of files) {
     const bytes = await readFile(filePath);
     const digest = sha256(bytes);
+    const relativePath = normalizeRelativePath(root, filePath);
     const extension = path.extname(filePath).toLowerCase();
     const mimeType = IMAGE_MIME_BY_EXTENSION.get(extension);
     const dimensions = readImageDimensions(bytes, mimeType);
+    const sourceIdentity = sha256(Buffer.from(`${digest}:${relativePath}`, 'utf8'));
     rows.push({
       manifest_version: manifestVersion,
-      asset_id: `asset_${digest.slice(0, 24)}`,
-      source_path: normalizeRelativePath(root, filePath),
+      asset_id: `asset_${sourceIdentity.slice(0, 24)}`,
+      source_path: relativePath,
       source_type: sourceType,
       sha256: digest,
       perceptual_hash: null,
@@ -239,6 +241,7 @@ export function validateBenchmarkManifest(rows) {
     summary: {
       row_count: rows.length,
       unique_hash_count: hashes.size,
+      exact_duplicate_count: Math.max(0, rows.length - hashes.size),
       physical_card_group_count: groups.size,
       training_eligible_count: rows.filter((row) => row.training_use_allowed).length,
       locked_test_count: rows.filter((row) => row.split === 'locked_test').length,
