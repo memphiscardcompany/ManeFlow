@@ -52,7 +52,7 @@ test('benchmark manifest recursively inventories supported images deterministica
   assert.ok(serializeBenchmarkManifest(rows).endsWith('\n'));
 });
 
-test('exact duplicate image bytes share one physical-card group', async () => {
+test('exact duplicate image bytes remain distinct observations in one physical-card group', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'maneflow-manifest-'));
   const bytes = png(900, 1200);
   await writeFile(path.join(root, 'first.png'), bytes);
@@ -64,10 +64,12 @@ test('exact duplicate image bytes share one physical-card group', async () => {
   });
 
   assert.equal(rows[0].sha256, rows[1].sha256);
+  assert.notEqual(rows[0].asset_id, rows[1].asset_id);
   assert.equal(rows[0].physical_card_group_id, rows[1].physical_card_group_id);
   const validation = validateBenchmarkManifest(rows);
-  assert.equal(validation.valid, false);
-  assert.match(validation.errors.join('\n'), /duplicate asset_id/);
+  assert.equal(validation.valid, true);
+  assert.equal(validation.summary.exact_duplicate_count, 1);
+  assert.equal(validation.summary.physical_card_group_count, 1);
 });
 
 test('manifest validator rejects physical-card leakage across splits', () => {
