@@ -7,6 +7,7 @@ import numpy as np
 
 from app.core.config import settings
 from app.services.imaging.card_detector import CardDetection, detect_cards
+from app.services.imaging.high_recall_recovery import recover_card_objects
 from app.services.imaging.learned_detector import LearnedCardDetector
 from app.services.imaging.roboflow_detector import RoboflowCardDetector, RoboflowDetectorError
 
@@ -66,6 +67,7 @@ def detector_readiness() -> dict[str, object]:
             "error": None,
         },
         "classical_fallback_available": True,
+        "high_recall_recovery_available": True,
     }
 
 
@@ -93,4 +95,12 @@ def detect_card_objects(
                 raise
             LOGGER.warning("Roboflow inference failed; using classical fallback.", exc_info=True)
 
-    return detect_cards(image, allow_whole_image_fallback=allow_whole_image_fallback)
+    # Preserve the strict contour detector as the normal local path. When callers
+    # explicitly allow single-image recovery and the primary detector finds no
+    # region, run the bounded review-only recovery detector instead of the old
+    # permissive whole-image fallback. Recovery detections are capped below exact
+    # identity thresholds and carry an explicit review-only kind hint.
+    classical = detect_cards(image, allow_whole_image_fallback=False)
+    if classical or not allow_whole_image_fallback:
+        return classical
+    return recover_card_objects(image)
