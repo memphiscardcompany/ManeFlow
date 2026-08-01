@@ -4,7 +4,7 @@
 
 Preserve clear card photographs that the strict primary detector misses because of low contrast, glare, sleeves, top loaders, holder edges, or incomplete card boundaries.
 
-The recovery path is local, deterministic, bounded, and review-only. It does not call a remote generative model and it cannot create an Exact identity.
+The recovery path is local, deterministic, bounded, review-only, and disabled by default. It does not call a remote generative model and it cannot create an Exact identity.
 
 ## Pipeline position
 
@@ -12,11 +12,12 @@ The recovery path is local, deterministic, bounded, and review-only. It does not
 learned local detector, when configured
 → approved remote detector, when configured
 → strict OpenCV contour detector
-→ bounded local high-recall recovery, only when explicitly allowed
+→ existing conservative fallback, by default
+→ bounded local high-recall recovery, only when explicitly enabled
 → Review Required
 ```
 
-The recovery path never replaces a valid primary detection. It runs only when the preceding detector routes return no region and the caller explicitly enables whole-image recovery.
+The recovery path never replaces a valid primary detection. It runs only when the preceding detector routes return no region, the caller explicitly enables whole-image recovery, and `HIGH_RECALL_RECOVERY_ENABLED=true` (Pydantic field `high_recall_recovery_enabled`) is set for that environment.
 
 ## Evidence
 
@@ -59,10 +60,10 @@ Blank card-ratio images, generic desktop panels, very small inputs, and ultra-wi
 The complete Python vision suite passed locally:
 
 ```text
-63 passed
+64 passed
 ```
 
-A small owner-controlled Drive diagnostic included five heterogeneous source images. Four continued through the existing primary contour detector. One small card-ratio JPEG that the primary detector missed was retained by `opencv_recovery_v1.0` as `possible_card_requires_review` in approximately 19 ms of local detector processing.
+A small owner-controlled Drive diagnostic included five heterogeneous source images. Four continued through the existing primary contour detector. With the feature enabled, one small card-ratio JPEG that the primary detector missed was retained by `opencv_recovery_v1.0` as `possible_card_requires_review` in approximately 19 ms of local detector processing.
 
 Those measurements are diagnostic only. They do not establish full-corpus recall, exact-card accuracy, production latency, or competitor superiority.
 
@@ -75,5 +76,5 @@ Before enabling this path in a canonical live deployment:
 3. Confirm zero silent source drops.
 4. Measure source-retention recall, no-card false positives, duplicate rate, and latency.
 5. Confirm that recovered regions cannot become Exact without independent evidence.
-6. Deploy behind a rollback-capable release flag.
+6. Enable only through a rollback-capable staged release flag.
 7. Tie the deployment to an exact Git commit and artifact digest.
