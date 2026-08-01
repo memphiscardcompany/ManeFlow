@@ -76,6 +76,7 @@ test('vision worker scan retries a transient rate limit with a fresh body', asyn
       baseUrl,
       timeoutMs: 2000,
       maxRetries: 1,
+      idempotencySecret: 'retry-test-scope',
       sleepFn: async (milliseconds) => { delays.push(milliseconds); },
     });
     const result = await client.scanDataUrl('data:image/jpeg;base64,aGVsbG8=');
@@ -111,6 +112,38 @@ test('vision worker scan single-flight shares identical concurrent work', async 
   });
 
   assert.equal(requests, 1);
+});
+
+test('vision worker idempotency keys are scoped and do not expose a stable raw image digest', async () => {
+  const keys = [];
+
+  await withServer((req, res) => {
+    keys.push(req.headers['x-maneflow-idempotency-key']);
+    req.resume();
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ scan_id: `scan-${keys.length}`, identity_confidence: 0 }));
+    });
+  }, async (baseUrl) => {
+    const firstClient = new VisionWorkerClient({
+      baseUrl,
+      timeoutMs: 2000,
+      idempotencySecret: 'tenant-or-process-scope-a',
+    });
+    const secondClient = new VisionWorkerClient({
+      baseUrl,
+      timeoutMs: 2000,
+      idempotencySecret: 'tenant-or-process-scope-b',
+    });
+    const image = 'data:image/jpeg;base64,c2FtZS1wcml2YXRlLWltYWdl';
+    await firstClient.scanDataUrl(image);
+    await secondClient.scanDataUrl(image);
+  });
+
+  assert.equal(keys.length, 2);
+  assert.match(keys[0], /^[a-f0-9]{64}$/);
+  assert.match(keys[1], /^[a-f0-9]{64}$/);
+  assert.notEqual(keys[0], keys[1]);
 });
 
 test('worker card extraction maps into the legacy ManeFlow evidence contract', () => {
