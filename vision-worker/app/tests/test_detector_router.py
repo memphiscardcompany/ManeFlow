@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+from app.core.config import settings
 from app.services.imaging.detector_router import detect_card_objects
 
 
@@ -30,6 +31,10 @@ def test_router_does_not_use_whole_image_fallback_for_general_scene_mode():
     assert detect_card_objects(image) == []
 
 
+def test_high_recall_recovery_is_disabled_by_default():
+    assert settings.high_recall_recovery_enabled is False
+
+
 def _low_contrast_holder_image() -> np.ndarray:
     image = np.full((1200, 900, 3), (44, 47, 50), dtype=np.uint8)
     cv2.rectangle(image, (145, 85), (755, 1115), (66, 69, 72), 9)
@@ -48,7 +53,8 @@ def _low_contrast_holder_image() -> np.ndarray:
     return image
 
 
-def test_router_recovers_low_contrast_card_as_review_only():
+def test_router_recovers_low_contrast_card_as_review_only(monkeypatch):
+    monkeypatch.setattr("app.services.imaging.detector_router.settings.high_recall_recovery_enabled", True)
     image = _low_contrast_holder_image()
     primary = detect_card_objects(image, allow_whole_image_fallback=False)
     recovered = detect_card_objects(image, allow_whole_image_fallback=True)
@@ -60,7 +66,8 @@ def test_router_recovers_low_contrast_card_as_review_only():
         assert recovered[0].confidence <= 0.72
 
 
-def test_router_recovery_keeps_generic_desktop_panel_rejected():
+def test_router_recovery_keeps_generic_desktop_panel_rejected(monkeypatch):
+    monkeypatch.setattr("app.services.imaging.detector_router.settings.high_recall_recovery_enabled", True)
     image = np.full((720, 1280, 3), 245, dtype=np.uint8)
     cv2.rectangle(image, (0, 0), (1279, 58), (230, 230, 230), -1)
     cv2.rectangle(image, (20, 90), (260, 690), (235, 235, 235), -1)
