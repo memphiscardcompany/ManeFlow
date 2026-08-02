@@ -1,0 +1,37 @@
+name: Validate Approved Deep Narrator Export
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/aidoc-export-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Download approved deep narrator test
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 5 --retry-delay 2 \
+            'https://www.aidocmaker.com/g0/audio?name=30224bfed02c484c9bc0918e1abbd7d1' \
+            -o narrator-test.bin
+          test -s narrator-test.bin
+          file narrator-test.bin
+          ffprobe -v error -show_entries format=format_name,duration,size -of json narrator-test.bin
+          ffmpeg -v error -i narrator-test.bin -f null -
+      - name: Upload validated test file
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-deep-narrator-export-test
+          path: narrator-test.bin
+          if-no-files-found: error
+          retention-days: 1
