@@ -42,6 +42,11 @@ def main() -> None:
     centering_successes = 0
     centering_skips = 0
     barcode_values_found = 0
+    expected_cards = 0
+    count_credited_detections = 0
+    count_missed_cards = 0
+    count_excess_detections = 0
+    count_labeled_images = 0
     stage_errors: list[dict[str, str]] = []
 
     for item in items:
@@ -52,6 +57,12 @@ def main() -> None:
             image = decode_image(path.read_bytes())
             quality = analyze_image_quality(image)
             detections = detect_card_objects(image)
+            if item.expected_card_count is not None:
+                count_labeled_images += 1
+                expected_cards += item.expected_card_count
+                count_credited_detections += min(len(detections), item.expected_card_count)
+                count_missed_cards += max(0, item.expected_card_count - len(detections))
+                count_excess_detections += max(0, len(detections) - item.expected_card_count)
             crops: list[dict[str, Any]] = []
 
             for detection in detections:
@@ -99,6 +110,7 @@ def main() -> None:
                     "path": item.path,
                     "quality": quality.to_dict(),
                     "detection_count": len(detections),
+                    "expected_card_count": item.expected_card_count,
                     "crops": crops,
                     "latency_ms": round((time.perf_counter() - started) * 1000.0, 3),
                     "error": None,
@@ -120,6 +132,16 @@ def main() -> None:
         "decoded_images": len(rows) - image_errors,
         "image_errors": image_errors,
         "detected_crops": crop_count,
+        "count_labeled_images": count_labeled_images,
+        "expected_cards": expected_cards,
+        "count_credited_detections": count_credited_detections,
+        "count_missed_cards": count_missed_cards,
+        "count_excess_detections": count_excess_detections,
+        "card_count_recall_proxy": (
+            round(count_credited_detections / expected_cards, 6)
+            if expected_cards
+            else None
+        ),
         "surface_successes": surface_successes,
         "surface_low_resolution_skips": surface_skips,
         "centering_successes": centering_successes,

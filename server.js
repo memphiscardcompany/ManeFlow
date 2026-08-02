@@ -16,6 +16,7 @@ import { createDurableScanJobRouter } from './src/scan-job-router.js';
 import { createAutomaticPricingEngine } from './src/services/automatic-pricing.js';
 import { createAutomaticPricingRouter } from './src/automatic-pricing-router.js';
 import { createReleaseProvenanceRouter } from './src/release-provenance-router.js';
+import { loadBundledCatalog } from './src/services/catalog-loader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -25,19 +26,7 @@ try {
 }
 const config = loadConfig();
 const runtimeValidation = assertRuntimeConfig(config);
-async function readJsonArrayIfPresent(filePath) {
-  try {
-    const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-    return [];
-  }
-}
-const baseCards = JSON.parse(await fs.readFile(path.join(__dirname, 'src/data/cards.json'), 'utf8'));
-const ownedChecklistCards = await readJsonArrayIfPresent(path.join(__dirname, 'src/data/cards.memphis-owned.json'));
-const tcgCatalogCards = await readJsonArrayIfPresent(path.join(__dirname, 'src/data/cards.tcg-imported.json'));
-const cards = [...baseCards, ...ownedChecklistCards, ...tcgCatalogCards];
+const cards = await loadBundledCatalog(__dirname);
 const sales = JSON.parse(await fs.readFile(path.join(__dirname, 'src/data/sales.json'), 'utf8'));
 const storage = createStorageAdapter(config);
 const store = await storage.init();

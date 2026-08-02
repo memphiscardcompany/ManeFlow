@@ -54,6 +54,28 @@ def _synthetic_spread() -> np.ndarray:
     return image
 
 
+def _synthetic_close_grid() -> np.ndarray:
+    image = np.full((1260, 1500, 3), 28, dtype=np.uint8)
+    card_width = 300
+    card_height = 400
+    gap = 8
+    start_x = 132
+    start_y = 22
+    index = 0
+    for row in range(3):
+        for column in range(4):
+            x1 = start_x + column * (card_width + gap)
+            y1 = start_y + row * (card_height + gap)
+            _paint_textured_card(
+                image,
+                (x1, y1),
+                (x1 + card_width, y1 + card_height),
+                index,
+            )
+            index += 1
+    return image
+
+
 def _synthetic_full_frame_card() -> np.ndarray:
     image = np.empty((1000, 714, 3), dtype=np.uint8)
     rng = np.random.default_rng(42)
@@ -85,6 +107,12 @@ def test_detects_multiple_textured_card_objects():
     assert len(detections) >= 6
     assert all(detection.confidence >= 0.5 for detection in detections)
     assert all(detection.crop.shape[0] > detection.crop.shape[1] for detection in detections)
+
+
+def test_detects_close_grid_without_merging_neighboring_cards():
+    detections = detect_cards(_synthetic_close_grid())
+    assert len(detections) >= 12
+    assert all(detection.fallback_whole_image is False for detection in detections)
 
 
 def test_whole_image_fallback_requires_visual_card_evidence():

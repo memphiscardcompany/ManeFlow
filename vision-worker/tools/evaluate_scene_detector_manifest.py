@@ -23,6 +23,7 @@ class ManifestItem:
     path: str
     contains_card_content: bool
     group: str
+    expected_card_count: int | None = None
     notes: str = ""
 
 
@@ -33,6 +34,10 @@ class EvaluationRow:
     contains_card_content: bool
     predicted_card_content: bool
     detection_count: int
+    expected_card_count: int | None
+    count_missed: int | None
+    count_excess: int | None
+    card_count_recall_proxy: float | None
     fallback_count: int
     maximum_confidence: float
     quality_score: int | None
@@ -87,11 +92,28 @@ def _metrics(rows: list[EvaluationRow]) -> dict[str, Any]:
     f1 = (2 * precision * recall / (precision + recall)) if precision + recall else 0.0
     accuracy = (tp + tn) / len(valid) if valid else 0.0
     latencies = [row.latency_ms for row in valid]
+    count_labeled = [row for row in valid if row.expected_card_count is not None]
+    expected_cards = sum(int(row.expected_card_count or 0) for row in count_labeled)
+    count_credited = sum(
+        min(row.detection_count, int(row.expected_card_count or 0))
+        for row in count_labeled
+    )
+    count_missed = sum(int(row.count_missed or 0) for row in count_labeled)
+    count_excess = sum(int(row.count_excess or 0) for row in count_labeled)
+    exact_count_images = sum(
+        row.detection_count == row.expected_card_count
+        for row in count_labeled
+    )
+    positive_images = sum(row.contains_card_content for row in valid)
+    negative_images = len(valid) - positive_images
 
     return {
         "images": len(rows),
         "valid_images": len(valid),
         "decode_or_runtime_errors": len(rows) - len(valid),
+        "positive_images": positive_images,
+        "negative_images": negative_images,
+        "binary_metrics_cover_both_classes": bool(positive_images and negative_images),
         **counts,
         "precision": round(precision, 6),
         "recall": round(recall, 6),
@@ -103,6 +125,26 @@ def _metrics(rows: list[EvaluationRow]) -> dict[str, Any]:
         "maximum_latency_ms": round(max(latencies), 3) if latencies else 0.0,
         "total_detections": sum(row.detection_count for row in valid),
         "whole_image_fallbacks": sum(row.fallback_count for row in valid),
+        "count_labeled_images": len(count_labeled),
+        "expected_cards": expected_cards,
+        "count_credited_detections": count_credited,
+        "count_missed_cards": count_missed,
+        "count_excess_detections": count_excess,
+        "card_count_recall_proxy": (
+            round(count_credited / expected_cards, 6)
+            if expected_cards
+            else None
+        ),
+        "exact_count_images": exact_count_images,
+        "exact_count_rate": (
+            round(exact_count_images / len(count_labeled), 6)
+            if count_labeled
+            else None
+        ),
+        "count_metric_scope": (
+            "Count recall is a scene-level proxy only; without per-object localization labels, "
+            "it cannot prove that credited detections correspond to distinct ground-truth cards."
+        ),
     }
 
 
@@ -118,11 +160,29 @@ def load_manifest(path: Path) -> tuple[dict[str, Any], list[ManifestItem]]:
         relative = str(raw.get("path", "")).strip()
         if not relative:
             raise ValueError(f"Manifest item {index} is missing path.")
+        contains_card_content = raw.get("contains_card_content")
+        if not isinstance(contains_card_content, bool):
+            raise ValueError(
+                f"Manifest item {index} contains_card_content must be a boolean."
+            )
+        expected_card_count = raw.get("expected_card_count")
+        if (
+            expected_card_count is not None
+            and (
+                isinstance(expected_card_count, bool)
+                or not isinstance(expected_card_count, int)
+                or expected_card_count < 0
+            )
+        ):
+            raise ValueError(
+                f"Manifest item {index} expected_card_count must be a non-negative integer or null."
+            )
         items.append(
             ManifestItem(
                 path=relative,
-                contains_card_content=bool(raw.get("contains_card_content")),
+                contains_card_content=contains_card_content,
                 group=str(raw.get("group", "ungrouped")).strip() or "ungrouped",
+                expected_card_count=expected_card_count,
                 notes=str(raw.get("notes", "")).strip(),
             )
         )
@@ -148,6 +208,10 @@ def evaluate(root: Path, items: list[ManifestItem]) -> list[EvaluationRow]:
                     contains_card_content=item.contains_card_content,
                     predicted_card_content=False,
                     detection_count=0,
+                    expected_card_count=item.expected_card_count,
+                    count_missed=item.expected_card_count,
+                    count_excess=0,
+                    card_count_recall_proxy=0.0 if item.expected_card_count else None,
                     fallback_count=0,
                     maximum_confidence=0.0,
                     quality_score=None,
@@ -166,6 +230,21 @@ def evaluate(root: Path, items: list[ManifestItem]) -> list[EvaluationRow]:
             detections = detect_card_objects(image)
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             predicted = bool(detections)
+            count_missed = (
+                max(0, item.expected_card_count - len(detections))
+                if item.expected_card_count is not None
+                else None
+            )
+            count_excess = (
+                max(0, len(detections) - item.expected_card_count)
+                if item.expected_card_count is not None
+                else None
+            )
+            card_count_recall_proxy = (
+                min(len(detections), item.expected_card_count) / item.expected_card_count
+                if item.expected_card_count
+                else (1.0 if item.expected_card_count == 0 and not detections else None)
+            )
             rows.append(
                 EvaluationRow(
                     path=item.path,
@@ -173,6 +252,14 @@ def evaluate(root: Path, items: list[ManifestItem]) -> list[EvaluationRow]:
                     contains_card_content=item.contains_card_content,
                     predicted_card_content=predicted,
                     detection_count=len(detections),
+                    expected_card_count=item.expected_card_count,
+                    count_missed=count_missed,
+                    count_excess=count_excess,
+                    card_count_recall_proxy=(
+                        round(card_count_recall_proxy, 6)
+                        if card_count_recall_proxy is not None
+                        else None
+                    ),
                     fallback_count=sum(1 for detection in detections if detection.fallback_whole_image),
                     maximum_confidence=max((detection.confidence for detection in detections), default=0.0),
                     quality_score=quality.quality_score,
@@ -190,6 +277,10 @@ def evaluate(root: Path, items: list[ManifestItem]) -> list[EvaluationRow]:
                     contains_card_content=item.contains_card_content,
                     predicted_card_content=False,
                     detection_count=0,
+                    expected_card_count=item.expected_card_count,
+                    count_missed=item.expected_card_count,
+                    count_excess=0,
+                    card_count_recall_proxy=0.0 if item.expected_card_count else None,
                     fallback_count=0,
                     maximum_confidence=0.0,
                     quality_score=None,

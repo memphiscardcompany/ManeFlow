@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 
 from app.core.config import settings
+from app.services.imaging.card_detector import CLASSICAL_DETECTOR_NAME
 from app.services.imaging.detector_router import detect_card_objects
 
 
@@ -22,7 +23,7 @@ def _textured_card_image() -> np.ndarray:
 def test_router_falls_back_to_classical_detector_without_weights():
     detections = detect_card_objects(_textured_card_image(), allow_whole_image_fallback=True)
     assert len(detections) == 1
-    assert detections[0].detector_name == "opencv_contour_v2.16"
+    assert detections[0].detector_name == CLASSICAL_DETECTOR_NAME
     assert detections[0].kind_hint == "unknown_card_object"
 
 
@@ -58,7 +59,7 @@ def test_router_recovers_low_contrast_card_as_review_only(monkeypatch):
     image = _low_contrast_holder_image()
     primary = detect_card_objects(image, allow_whole_image_fallback=False)
     recovered = detect_card_objects(image, allow_whole_image_fallback=True)
-    assert primary == [] or all(item.detector_name == "opencv_contour_v2.16" for item in primary)
+    assert primary == [] or all(item.detector_name == CLASSICAL_DETECTOR_NAME for item in primary)
     assert len(recovered) >= 1
     if primary == []:
         assert recovered[0].detector_name == "opencv_recovery_v1.0"

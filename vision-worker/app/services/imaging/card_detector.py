@@ -9,6 +9,8 @@ import numpy as np
 from app.core.config import settings
 from app.services.imaging.rectify import rectify_quadrilateral
 
+CLASSICAL_DETECTOR_NAME = "opencv_contour_v2.17_multimap"
+
 
 @dataclass(frozen=True)
 class CardDetection:
@@ -20,7 +22,7 @@ class CardDetection:
     area_fraction: float
     fallback_whole_image: bool
     crop: np.ndarray
-    detector_name: str = "opencv_contour_v2.16"
+    detector_name: str = CLASSICAL_DETECTOR_NAME
     kind_hint: str = "unknown_card_object"
 
 
@@ -65,7 +67,7 @@ def _box_overlap_metrics(a: tuple[int, int, int, int], b: tuple[int, int, int, i
     return iou, containment
 
 
-def _candidate_contours(image: np.ndarray) -> Iterable[np.ndarray]:
+def _candidate_contours(image: np.ndarray) -> Iterable[tuple[np.ndarray, bool]]:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
 
@@ -74,8 +76,39 @@ def _candidate_contours(image: np.ndarray) -> Iterable[np.ndarray]:
     edge = cv2.morphologyEx(edge, cv2.MORPH_CLOSE, kernel, iterations=2)
     edge = cv2.dilate(edge, np.ones((3, 3), np.uint8), iterations=1)
 
-    contours, _ = cv2.findContours(edge, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    return contours
+    # A strongly closed edge map remains the precision-first path. It can merge
+    # neighboring cards in binder pages and tabletop spreads, so independent,
+    # less-connected maps provide bounded high-recall proposals. Every proposal
+    # still passes geometry, appearance, and cross-map deduplication below.
+    raw_edge = cv2.Canny(gray, 35, 130)
+    close3 = cv2.morphologyEx(
+        raw_edge,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)),
+        iterations=1,
+    )
+    adaptive = cv2.adaptiveThreshold(
+        gray,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        41,
+        3,
+    )
+    bright_threshold = max(115, int(round(float(np.percentile(gray, 68.0)))))
+    bright = cv2.threshold(gray, bright_threshold, 255, cv2.THRESH_BINARY)[1]
+
+    output: list[tuple[np.ndarray, bool]] = []
+    for candidate_map, auxiliary in (
+        (edge, False),
+        (raw_edge, True),
+        (close3, True),
+        (adaptive, True),
+        (bright, True),
+    ):
+        contours, _ = cv2.findContours(candidate_map, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        output.extend((contour, auxiliary) for contour in contours)
+    return output
 
 
 def _entropy(gray: np.ndarray) -> float:
@@ -230,7 +263,7 @@ def detect_cards(
     image_area = float(w * h)
     candidates: list[tuple[float, np.ndarray, tuple[int, int, int, int], float, float, float]] = []
 
-    for contour in _candidate_contours(working):
+    for contour, auxiliary in _candidate_contours(working):
         contour_area = float(cv2.contourArea(contour))
         area_fraction = contour_area / image_area if image_area else 0.0
         if not (settings.detector_min_area_fraction <= area_fraction <= settings.detector_max_area_fraction):
@@ -243,14 +276,19 @@ def detect_cards(
         long_side = max(rect_w, rect_h)
         short_side = min(rect_w, rect_h)
         aspect_ratio = short_side / long_side
-        if not 0.50 <= aspect_ratio <= 0.92:
+        minimum_aspect = 0.45 if auxiliary else 0.50
+        maximum_aspect = 0.95 if auxiliary else 0.92
+        if not minimum_aspect <= aspect_ratio <= maximum_aspect:
             continue
 
         rect_area = rect_w * rect_h
         rectangularity = contour_area / rect_area if rect_area else 0.0
-        if rectangularity < 0.48:
+        minimum_rectangularity = 0.30 if auxiliary else 0.48
+        if rectangularity < minimum_rectangularity:
             continue
-        if aspect_ratio > 0.86 and (area_fraction < 0.10 or rectangularity < 0.55):
+        if aspect_ratio > 0.90 and (area_fraction < 0.015 or rectangularity < 0.40):
+            continue
+        if not auxiliary and aspect_ratio > 0.86 and (area_fraction < 0.10 or rectangularity < 0.55):
             continue
 
         box = cv2.boxPoints(rect).astype(np.float32)
@@ -259,30 +297,43 @@ def detect_cards(
         confidence = min(
             0.98,
             0.34
-            + (0.38 * min(rectangularity, 1.0))
-            + (0.20 * aspect_score)
-            + (0.08 * min(area_fraction / 0.25, 1.0)),
+            + (0.36 * min(rectangularity, 1.0))
+            + (0.23 * aspect_score)
+            + (0.07 * min(area_fraction / 0.18, 1.0))
+            - (0.03 if auxiliary else 0.0),
+            # Connected auxiliary contours are useful proposals but should not
+            # outrank clean individual-card rectangles merely because they span
+            # several neighboring cards.
+            0.94 - (0.18 * max(0.0, min(1.0, (area_fraction - 0.18) / 0.42)))
+            if auxiliary
+            else 0.98,
         )
         candidates.append((confidence, box, (x, y, bw, bh), rectangularity, aspect_ratio, area_fraction))
 
-    candidates.sort(key=lambda item: (item[5], item[0]), reverse=True)
-    accepted: list[tuple[float, np.ndarray, tuple[int, int, int, int], float, float, float]] = []
-    for candidate in candidates:
-        duplicate_or_nested = False
-        for previous in accepted:
-            iou, containment = _box_overlap_metrics(candidate[2], previous[2])
-            if iou > 0.58 or containment > 0.74:
-                duplicate_or_nested = True
-                break
-        if duplicate_or_nested:
-            continue
-        accepted.append(candidate)
-        if len(accepted) >= settings.max_detections_per_image:
-            break
-
-    detections: list[CardDetection] = []
+    # Prefer card-like geometry over the largest contour. Sorting by area first
+    # caused connected rows of cards to suppress their individual proposals.
+    candidates.sort(key=lambda item: (item[0], item[5]), reverse=True)
     inverse = 1.0 / scale
-    for confidence, box, bbox, rectangularity, aspect_ratio, area_fraction in accepted:
+    # Appearance validation must happen before non-maximum suppression. A large
+    # connected contour may score well geometrically but fail the card-appearance
+    # gate; suppressing its nested individual cards first caused entire clear
+    # grids to disappear.
+    candidate_limit = max(200, settings.max_detections_per_image * 8)
+    plausible_candidates: list[
+        tuple[
+            float,
+            np.ndarray,
+            tuple[int, int, int, int],
+            np.ndarray,
+            tuple[int, int, int, int],
+            float,
+            float,
+            float,
+            np.ndarray,
+            CardAppearanceMetrics,
+        ]
+    ] = []
+    for confidence, box, bbox, rectangularity, aspect_ratio, area_fraction in candidates[:candidate_limit]:
         original_box = box * inverse
         crop = rectify_quadrilateral(image, original_box)
         x, y, bw, bh = bbox
@@ -303,6 +354,75 @@ def detect_cards(
         )
         if not plausible:
             continue
+        plausible_candidates.append((
+            confidence,
+            box,
+            bbox,
+            original_box,
+            original_bbox,
+            rectangularity,
+            aspect_ratio,
+            area_fraction,
+            crop,
+            appearance,
+        ))
+
+    # Scene containers and connected card rows can themselves look richly
+    # textured. If a large proposal contains at least three independent,
+    # plausible card-scale anchors, treat the large contour as their container
+    # rather than one physical card.
+    small_anchor_boxes: list[tuple[int, int, int, int]] = []
+    for candidate in plausible_candidates:
+        bbox = candidate[2]
+        area_fraction = candidate[7]
+        if area_fraction > 0.25:
+            continue
+        if any(
+            (lambda overlap: overlap[0] > 0.52 or overlap[1] > 0.72)(
+                _box_overlap_metrics(bbox, previous)
+            )
+            for previous in small_anchor_boxes
+        ):
+            continue
+        small_anchor_boxes.append(bbox)
+
+    detections: list[CardDetection] = []
+    accepted_boxes: list[tuple[int, int, int, int]] = []
+    for (
+        confidence,
+        box,
+        bbox,
+        original_box,
+        original_bbox,
+        rectangularity,
+        aspect_ratio,
+        area_fraction,
+        crop,
+        appearance,
+    ) in plausible_candidates:
+        if area_fraction > 0.35:
+            x, y, width, height = bbox
+            nested_anchors = 0
+            for anchor_x, anchor_y, anchor_width, anchor_height in small_anchor_boxes:
+                center_x = anchor_x + (anchor_width / 2.0)
+                center_y = anchor_y + (anchor_height / 2.0)
+                if (
+                    x <= center_x <= x + width
+                    and y <= center_y <= y + height
+                    and (anchor_width * anchor_height) <= (width * height) / 3.0
+                ):
+                    nested_anchors += 1
+            if nested_anchors >= 3:
+                continue
+        duplicate_or_nested = False
+        for previous_box in accepted_boxes:
+            iou, containment = _box_overlap_metrics(bbox, previous_box)
+            if iou > 0.52 or containment > 0.72:
+                duplicate_or_nested = True
+                break
+        if duplicate_or_nested:
+            continue
+        accepted_boxes.append(bbox)
 
         calibrated_confidence = min(
             0.99,
@@ -318,8 +438,11 @@ def detect_cards(
                 area_fraction=round(float(area_fraction), 4),
                 fallback_whole_image=False,
                 crop=crop,
+                detector_name=CLASSICAL_DETECTOR_NAME,
             )
         )
+        if len(detections) >= settings.max_detections_per_image:
+            break
 
     if detections:
         return detections
@@ -357,6 +480,7 @@ def detect_cards(
                     area_fraction=1.0,
                     fallback_whole_image=True,
                     crop=crop,
+                    detector_name=CLASSICAL_DETECTOR_NAME,
                 )
             ]
     return []

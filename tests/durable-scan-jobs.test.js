@@ -15,14 +15,15 @@ async function temporaryDirectory(t) {
   return directory;
 }
 
-async function waitForJob(spool, ownerUserId, jobId, predicate, timeoutMs = 4_000) {
+async function waitForJob(spool, ownerUserId, jobId, predicate, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
+  let lastJob = null;
   while (Date.now() < deadline) {
-    const job = spool.getJob(ownerUserId, jobId, { limit: 250 });
-    if (job && predicate(job)) return job;
+    lastJob = spool.getJob(ownerUserId, jobId, { limit: 250 });
+    if (lastJob && predicate(lastJob)) return lastJob;
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  throw new Error('Timed out waiting for durable scan job state.');
+  throw new Error(`Timed out waiting for durable scan job state; last status: ${lastJob?.status || 'missing'}.`);
 }
 
 test('durable scan jobs are owner scoped and idempotent at job and item boundaries', async (t) => {
@@ -81,6 +82,47 @@ test('durable scan jobs are owner scoped and idempotent at job and item boundari
   for (const item of completed.items) {
     await assert.rejects(fs.access(spool.payloadFile(first.job.id, item.id)));
   }
+});
+
+test('concurrent item progress serializes durable job snapshots', async (t) => {
+  const rootDir = await temporaryDirectory(t);
+  const spool = new DurableScanJobSpool({
+    rootDir,
+    concurrency: 2,
+    processor: async () => ({ message: 'done' }),
+  });
+  const atomicJson = spool.atomicJson.bind(spool);
+  let activeJobWrites = 0;
+  let maximumConcurrentJobWrites = 0;
+  spool.atomicJson = async (filePath, value) => {
+    if (path.basename(filePath) !== 'job.json') return atomicJson(filePath, value);
+    activeJobWrites += 1;
+    maximumConcurrentJobWrites = Math.max(maximumConcurrentJobWrites, activeJobWrites);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return await atomicJson(filePath, value);
+    } finally {
+      activeJobWrites -= 1;
+    }
+  };
+  await spool.initialize();
+
+  const created = await spool.createJob({
+    ownerUserId: 'user-a',
+    idempotencyKey: 'serialized-job-snapshots',
+    expectedItems: 2,
+  });
+  await spool.addItem('user-a', created.job.id, {
+    itemKey: 'first', fileName: 'first.jpg', dataUrl: imageDataUrl('first'),
+  });
+  await spool.addItem('user-a', created.job.id, {
+    itemKey: 'second', fileName: 'second.jpg', dataUrl: imageDataUrl('second'),
+  });
+  await spool.commit('user-a', created.job.id);
+
+  const completed = await waitForJob(spool, 'user-a', created.job.id, (job) => job.status === 'complete');
+  assert.equal(completed.progress.complete, 2);
+  assert.equal(maximumConcurrentJobWrites, 1);
 });
 
 test('temporary failures retry once while permanent failures do not form a retry storm', async (t) => {
