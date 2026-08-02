@@ -1,0 +1,17 @@
+{
+  "archive": "chapters.zip",
+  "archive_size": 162137,
+  "archive_sha256": "2f5d4daf3466de0abeabac38afbcaf51677a8e474cacb66d00197d40776f0bec",
+  "base64_chars": 216184,
+  "payload_issue": null,
+  "parts": [
+    {"index":0,"chars":27023,"sha256":"1300da95ee1434171a794e21b3d81ed2637a70e8545510019fe2af09b3121799"},
+    {"index":1,"chars":27023,"sha256":"34e21cd0d05abfb6826fd2536783bdec422b64e56ee5fe80e71b1ef15450b3c9"},
+    {"index":2,"chars":27023,"sha256":"c102c85318fdf94d992bf14570a8002851f502390392efa37da5e7bfba0f9195"},
+    {"index":3,"chars":27023,"sha256":"8db5bb0cbc00c4f2abb60737a87ca8367a19093ee3c3b9d63074e23ded31bd9c"},
+    {"index":4,"chars":27023,"sha256":"de3e2747520e87dba79496ea3675347d37b1373fbeadc906546aeae331d28d94"},
+    {"index":5,"chars":27023,"sha256":"578c8389af8128f5c39ab23a02a89935913a986ad03439d50860302c4e8f9487"},
+    {"index":6,"chars":27023,"sha256":"a5c755d02e754b3c169c713c1546e73d9d5d21575ea44c507cdb9a0cec33d60c"},
+    {"index":7,"chars":27023,"sha256":"8b920a8d1f2af5dfd4e76002b4ae33902f71b194676427d1315491c588274b73"}
+  ]
+}
