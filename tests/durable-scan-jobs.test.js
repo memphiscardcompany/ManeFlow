@@ -123,6 +123,7 @@ test('concurrent item progress serializes durable job snapshots', async (t) => {
   const completed = await waitForJob(spool, 'user-a', created.job.id, (job) => job.status === 'complete');
   assert.equal(completed.progress.complete, 2);
   assert.equal(maximumConcurrentJobWrites, 1);
+  await spool.flush(created.job.id);
 });
 
 test('temporary failures retry once while permanent failures do not form a retry storm', async (t) => {

@@ -181,6 +181,17 @@ export class DurableScanJobSpool {
     }
   }
 
+  async flush(jobId = null) {
+    const targetJobId = jobId == null ? null : String(jobId);
+    while (true) {
+      const pending = targetJobId == null
+        ? [...this.persistQueues.values()]
+        : [this.persistQueues.get(targetJobId)].filter(Boolean);
+      if (!pending.length) return;
+      await Promise.allSettled(pending);
+    }
+  }
+
   async initialize() {
     if (this.initialized) return this;
     await fs.mkdir(this.rootDir, { recursive: true, mode: 0o700 });
@@ -470,6 +481,7 @@ export class DurableScanJobSpool {
         await this.persist(job);
       }
     }));
+    await this.flush();
   }
 }
 
