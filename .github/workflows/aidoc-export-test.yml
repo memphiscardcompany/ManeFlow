@@ -14,24 +14,34 @@ jobs:
   validate-export:
     runs-on: ubuntu-latest
     steps:
-      - name: Install FFmpeg
+      - name: Install FFmpeg and jq
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg
-      - name: Download approved deep narrator test
+          sudo apt-get install -y --no-install-recommends ffmpeg jq
+      - name: Import through byte-preserving audio bridge
         run: |
           set -euxo pipefail
-          curl -fL --retry 5 --retry-delay 2 \
-            'https://www.aidocmaker.com/g0/audio?name=30224bfed02c484c9bc0918e1abbd7d1' \
-            -o narrator-test.bin
+          response="$(curl -fsS --retry 3 --retry-delay 2 \
+            -X POST 'https://e17a3f9c7f3b3e373e.v2.appdeploy.ai/api/import' \
+            -H 'content-type: application/json' \
+            --data '{"url":"https://www.aidocmaker.com/g0/audio?name=30224bfed02c484c9bc0918e1abbd7d1"}')"
+          echo "$response" | jq .
+          signed_url="$(echo "$response" | jq -er '.url')"
+          expected_bytes="$(echo "$response" | jq -er '.bytes')"
+          curl -fL --retry 3 --retry-delay 2 "$signed_url" -o narrator-test.bin
           test -s narrator-test.bin
+          actual_bytes="$(stat -c '%s' narrator-test.bin)"
+          test "$actual_bytes" -eq "$expected_bytes"
           file narrator-test.bin
           ffprobe -v error -show_entries format=format_name,duration,size -of json narrator-test.bin
           ffmpeg -v error -i narrator-test.bin -f null -
+          sha256sum narrator-test.bin | tee narrator-test.sha256
       - name: Upload validated test file
         uses: actions/upload-artifact@v4
         with:
           name: approved-deep-narrator-export-test
-          path: narrator-test.bin
+          path: |
+            narrator-test.bin
+            narrator-test.sha256
           if-no-files-found: error
           retention-days: 1
