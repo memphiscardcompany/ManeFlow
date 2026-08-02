@@ -1,0 +1,32 @@
+name: Test AI Doc Maker audiobook download
+
+on:
+  push:
+    branches:
+      - audiobook/son-of-belle-starr-kokoro-final-20260801
+    paths:
+      - '.github/workflows/test-aidoc-download.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Chapter 1 deep-voice audio
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 3 --retry-delay 2 \
+            'https://www.aidocmaker.com/g0/audio?name=56c4b30987db462aa562e7b0c4607bd0' \
+            -o chapter01.bin
+          ls -lh chapter01.bin
+          file chapter01.bin
+          ffprobe -v error -show_entries format=format_name,duration,size -of json chapter01.bin
+      - name: Upload test audio
+        uses: actions/upload-artifact@v4
+        with:
+          name: aidoc-deep-voice-download-test
+          path: chapter01.bin
+          retention-days: 1
