@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JsonStore } from '../src/services/store.js';
+import { loadBundledCatalog } from '../src/services/catalog-loader.js';
 import { analyzeCardScene } from '../src/services/vision.js';
 import { parseRecognitionBenchmarkInput, runRecognitionBenchmark } from '../src/services/recognition-benchmark.js';
 import { isSupportedBenchmarkImage, pairImagesWithBenchmarkCases } from '../src/services/recognition-folder-benchmark.js';
@@ -38,7 +39,7 @@ async function readJsonFile(filePath, fallback = []) {
 }
 
 async function loadCatalog() {
-  const bundled = await readJsonFile(path.join(root, 'src/data/cards.json'), []);
+  const bundled = await loadBundledCatalog(root);
   const extraPath = arg('catalog');
   const extra = extraPath ? await readJsonFile(extraPath, []) : [];
   const storePath = arg('store');

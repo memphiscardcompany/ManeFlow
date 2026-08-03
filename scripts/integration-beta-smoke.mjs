@@ -5,8 +5,9 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'maneflow-beta-integration-'));
 const workerData = path.join(temp, 'worker-data');
 const scanFolder = path.join(temp, 'ricoh-scans');
@@ -68,7 +69,16 @@ const workerPort = await freePort();
 const corePort = await freePort();
 const workerBase = `http://127.0.0.1:${workerPort}`;
 const coreBase = `http://127.0.0.1:${corePort}`;
-const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+const pythonCandidates = [
+  String(process.env.PYTHON || '').trim(),
+  path.join(root, '.venv-vision', 'Scripts', 'python.exe'),
+  path.join(root, '.venv-vision', 'bin', 'python'),
+  process.platform === 'win32' ? 'python' : 'python3',
+].filter(Boolean);
+const python = pythonCandidates.find((candidate) => (
+  candidate === 'python' || candidate === 'python3' || fs.existsSync(candidate)
+));
+if (!python) throw new Error('Python is unavailable. Install vision-worker requirements or set PYTHON.');
 let worker;
 let core;
 

@@ -4,11 +4,12 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(new URL('..', import.meta.url).pathname);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 async function read(relativePath) {
-  return fs.readFile(path.join(root, relativePath), 'utf8');
+  return (await fs.readFile(path.join(root, relativePath), 'utf8')).replaceAll('\r\n', '\n');
 }
 
 function serviceBlock(compose, service, nextService = null) {
@@ -76,7 +77,12 @@ test('Caddy contract provisions first-party TLS and restrictive proxy headers', 
   assert.match(caddyfile, /max_size 32MB/);
 });
 
-test('staging shell procedures pass syntax validation and refuse placeholders by design', async () => {
+test('staging shell procedures pass syntax validation and refuse placeholders by design', async (t) => {
+  const bash = spawnSync('bash', ['--version'], { encoding: 'utf8' });
+  if (bash.error?.code === 'ENOENT') {
+    t.skip('Bash is not available in this test environment.');
+    return;
+  }
   for (const file of ['deploy/deploy-staging.sh', 'deploy/backup-staging.sh', 'deploy/rollback-staging.sh']) {
     const syntax = spawnSync('bash', ['-n', path.join(root, file)], { encoding: 'utf8' });
     assert.equal(syntax.status, 0, `${file}: ${syntax.stderr}`);

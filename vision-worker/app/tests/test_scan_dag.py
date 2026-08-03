@@ -51,7 +51,11 @@ async def test_timeout_is_isolated_and_reported() -> None:
         await asyncio.sleep(0.05)
         return "late"
 
-    result = await run_parallel_crop_evidence(object(), ocr=slow, embedding=lambda _: [1.0], timeout_seconds=0.01)
+    async def fast_embedding(_: object) -> list[float]:
+        await asyncio.sleep(0)
+        return [1.0]
+
+    result = await run_parallel_crop_evidence(object(), ocr=slow, embedding=fast_embedding, timeout_seconds=0.01)
     assert result.ocr.status == "failed"
     assert result.ocr.error_code == "TIMEOUT"
     assert result.embedding.status == "complete"

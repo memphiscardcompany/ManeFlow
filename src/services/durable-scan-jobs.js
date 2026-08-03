@@ -143,6 +143,7 @@ export class DurableScanJobSpool {
     this.retryBackoffMs = integer(retryBackoffMs, 1_000, 100, 60_000);
     this.jobs = new Map();
     this.activeJobs = new Set();
+    this.persistQueues = new Map();
     this.initialized = false;
   }
 
@@ -167,7 +168,28 @@ export class DurableScanJobSpool {
 
   async persist(job) {
     job.updatedAt = new Date().toISOString();
-    await this.atomicJson(this.jobFile(job.id), job);
+    const snapshot = JSON.parse(JSON.stringify(job));
+    const previous = this.persistQueues.get(job.id) || Promise.resolve();
+    const queued = previous
+      .catch(() => {})
+      .then(() => this.atomicJson(this.jobFile(job.id), snapshot));
+    this.persistQueues.set(job.id, queued);
+    try {
+      await queued;
+    } finally {
+      if (this.persistQueues.get(job.id) === queued) this.persistQueues.delete(job.id);
+    }
+  }
+
+  async flush(jobId = null) {
+    const targetJobId = jobId == null ? null : String(jobId);
+    while (true) {
+      const pending = targetJobId == null
+        ? [...this.persistQueues.values()]
+        : [this.persistQueues.get(targetJobId)].filter(Boolean);
+      if (!pending.length) return;
+      await Promise.allSettled(pending);
+    }
   }
 
   async initialize() {
@@ -459,6 +481,7 @@ export class DurableScanJobSpool {
         await this.persist(job);
       }
     }));
+    await this.flush();
   }
 }
 

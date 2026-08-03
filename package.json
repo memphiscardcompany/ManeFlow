@@ -25,7 +25,7 @@
     "recognition:benchmark:folder": "node scripts/run-recognition-folder-benchmark.mjs",
     "recognition:discover:ebay": "node scripts/discover-ebay-benchmark-images.mjs",
     "verify:release": "node scripts/verify-release.js",
-    "vision:test": "cd vision-worker && pytest -q",
+    "vision:test": "node scripts/run-python-tests.mjs",
     "verify:beta": "npm run check && npm run security:scan && npm test && npm run smoke && npm run vision:test && npm run integration:beta && npm run mobile:check && npm run desktop:check",
     "integration:beta": "node scripts/integration-beta-smoke.mjs",
     "security:scan": "node scripts/scan-secrets.mjs",
