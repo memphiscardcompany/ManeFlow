@@ -56,10 +56,10 @@ jobs:
           python -m pip install numpy soundfile pillow
 
       - name: Verify canonical 23-chapter source
-        run: python audiobook_job/render_chatterbox_hf.py verify-source
+        run: python audiobook_job/render_chatterbox_hf_v2.py verify-source
 
       - name: Render assigned chapters through official Chatterbox Nano ZeroGPU
-        run: python audiobook_job/render_chatterbox_hf.py render --group '${{ matrix.group }}'
+        run: python audiobook_job/render_chatterbox_hf_v2.py render --group '${{ matrix.group }}'
 
       - name: Upload validated chapter masters
         uses: actions/upload-artifact@v4
@@ -102,7 +102,7 @@ jobs:
           test "$(find audiobook_job/build/chapters -name 'segment_manifest.csv' -type f | wc -l)" -eq 23
 
       - name: Assemble final M4B, M4A, chapters, reports, and package
-        run: python audiobook_job/render_chatterbox_hf.py assemble
+        run: python audiobook_job/render_chatterbox_hf_v2.py assemble
 
       - name: Validate package and list final deliverables
         run: |
