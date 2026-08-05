@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/build-chatterbox-nano-runtime.yml'
-      - 'audiobook_job/runtime_probe.py'
   workflow_dispatch:
 
 permissions:
@@ -22,12 +21,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Build relocatable Python and Chatterbox runtime
+      - name: Build relocatable CPU-only Chatterbox Nano runtime
         shell: bash
         run: |
           set -euxo pipefail
           RUNTIME="$GITHUB_WORKSPACE/chatterbox_nano_runtime"
-          mkdir -p "$RUNTIME/python" "$RUNTIME/site-packages" "$RUNTIME/model" "$RUNTIME/test"
+          mkdir -p "$RUNTIME/python" "$RUNTIME/model" "$RUNTIME/test"
 
           PYROOT="$(python - <<'PY'
           import sys
@@ -36,21 +35,35 @@ jobs:
           PY
           )"
           cp -a "$PYROOT"/. "$RUNTIME/python/"
+          RP="${RUNTIME}/python/bin/python"
 
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install --target "$RUNTIME/site-packages" \
+          "$RP" -m pip install --upgrade pip setuptools wheel
+          "$RP" -m pip install \
             --index-url https://download.pytorch.org/whl/cpu \
             'torch==2.6.0+cpu' 'torchaudio==2.6.0+cpu'
-          python -m pip install --target "$RUNTIME/site-packages" --no-deps 'chatterbox-tts==0.1.7'
-          python -m pip install --target "$RUNTIME/site-packages" \
-            'numpy>=1.24,<2' 'librosa==0.11.0' 's3tokenizer' \
-            'transformers==5.2.0' 'diffusers==0.29.0' \
-            'git+https://github.com/resemble-ai/Perth.git@master' \
-            'conformer==0.3.2' 'safetensors==0.5.3' 'spacy-pkuseg' \
-            'pykakasi==2.3.0' 'pyloudnorm' 'omegaconf' \
-            'huggingface-hub' 'soundfile' 'sentencepiece' 'accelerate'
 
-          PYTHONPATH="$RUNTIME/site-packages" "$RUNTIME/python/bin/python" - <<'PY'
+          cat > "$RUNTIME/constraints.txt" <<'EOF'
+          torch==2.6.0+cpu
+          torchaudio==2.6.0+cpu
+          numpy==1.26.4
+          EOF
+
+          PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu \
+          "$RP" -m pip install \
+            --constraint "$RUNTIME/constraints.txt" \
+            'git+https://github.com/resemble-ai/chatterbox.git@master'
+
+          "$RP" - <<'PY'
+          from pathlib import Path
+          import inspect
+          from chatterbox.tts_turbo import ChatterboxTurboTTS
+          signature = str(inspect.signature(ChatterboxTurboTTS.from_local))
+          print({'from_local_signature': signature})
+          if 'nano' not in signature:
+              raise SystemExit('Current Chatterbox Nano loader was not installed')
+          PY
+
+          "$RP" - <<'PY'
           from huggingface_hub import snapshot_download
           snapshot_download(
               repo_id='ResembleAI/chatterbox-nano',
@@ -72,6 +85,7 @@ jobs:
 
           root = Path(__file__).resolve().parent
           torch.set_num_threads(max(1, min(5, os.cpu_count() or 1)))
+          torch.set_num_interop_threads(1)
           model = ChatterboxTurboTTS.from_local(root / 'model', device='cpu', nano=True)
           wav = model.generate(
               'It was a false dawn when the match flared into life, revealing the gravestone that bore the name Belle Starr.',
@@ -83,13 +97,20 @@ jobs:
               norm_loudness=True,
           )
           audio = wav.squeeze().detach().cpu().numpy()
+          if audio.size < model.sr or float(abs(audio).max()) < 0.005:
+              raise SystemExit('Smoke narration is empty or implausibly short')
           sf.write(root / 'test' / 'smoke.wav', audio, model.sr, subtype='PCM_16')
           print({'samples': int(audio.size), 'sample_rate': model.sr, 'peak': float(abs(audio).max())})
           PY
 
-          PYTHONPATH="$RUNTIME/site-packages" "$RUNTIME/python/bin/python" "$RUNTIME/run_smoke.py"
-          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,sample_rate,channels -of json "$RUNTIME/test/smoke.wav"
-          "$RUNTIME/python/bin/python" -m pip freeze > "$RUNTIME/requirements-freeze.txt" || true
+          "$RP" "$RUNTIME/run_smoke.py"
+          ffprobe -v error \
+            -show_entries format=duration,size \
+            -show_entries stream=codec_name,sample_rate,channels \
+            -of json "$RUNTIME/test/smoke.wav"
+          ffmpeg -v error -i "$RUNTIME/test/smoke.wav" -f null -
+          "$RP" -m pip freeze > "$RUNTIME/requirements-freeze.txt"
+          sha256sum "$RUNTIME/test/deep_reference.mp3" "$RUNTIME/test/smoke.wav" > "$RUNTIME/test/SHA256SUMS.txt"
           du -sh "$RUNTIME"
 
       - name: Upload portable runtime
