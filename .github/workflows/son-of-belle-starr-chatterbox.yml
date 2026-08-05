@@ -1,0 +1,127 @@
+name: Son of Belle Starr - Deep Western Neural Audiobook
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'audiobook_job/**'
+      - '.github/workflows/son-of-belle-starr-chatterbox.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: son-of-belle-starr-chatterbox-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: '1'
+  CHATTERBOX_MAX_CHARS: '285'
+  CHATTERBOX_TEMPERATURE: '0.72'
+  CHATTERBOX_TOP_P: '0.92'
+  CHATTERBOX_TOP_K: '800'
+  CHATTERBOX_REPETITION_PENALTY: '1.25'
+  CHATTERBOX_SEED: '314159'
+  CHATTERBOX_REFERENCE_URL: 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/ca2c4c0b-626c-4e79-a2c7-b8c1eaa0b957.mp3'
+
+jobs:
+  render:
+    name: Render deep Western group ${{ matrix.group }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        group: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    steps:
+      - name: Check out isolated audiobook branch
+        uses: actions/checkout@v4
+
+      - name: Install audio dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg libsndfile1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install render dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy soundfile pillow
+
+      - name: Verify canonical 23-chapter source
+        run: python audiobook_job/render_chatterbox_hf_v2.py verify-source
+
+      - name: Render assigned chapters through official Chatterbox Nano ZeroGPU
+        run: python audiobook_job/render_chatterbox_hf_v2.py render --group '${{ matrix.group }}'
+
+      - name: Upload validated chapter masters
+        uses: actions/upload-artifact@v4
+        with:
+          name: belle-starr-deep-western-chapters-${{ matrix.group }}
+          path: |
+            audiobook_job/build/chapters/
+            audiobook_job/build/reports/group_${{ matrix.group }}_summary.json
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 7
+
+  assemble:
+    name: Assemble, chapterize, package, and decode-test
+    needs: render
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Check out isolated audiobook branch
+        uses: actions/checkout@v4
+
+      - name: Install assembly dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg libsndfile1
+          python -m pip install --upgrade pip
+          python -m pip install numpy soundfile pillow
+
+      - name: Download all validated chapter groups
+        uses: actions/download-artifact@v4
+        with:
+          pattern: belle-starr-deep-western-chapters-*
+          path: audiobook_job/build
+          merge-multiple: true
+
+      - name: Confirm all 23 chapter masters and manifests exist
+        run: |
+          find audiobook_job/build/chapters -name 'chapter_*_master.flac' -type f | sort
+          test "$(find audiobook_job/build/chapters -name 'chapter_*_master.flac' -type f | wc -l)" -eq 23
+          test "$(find audiobook_job/build/chapters -name 'segment_manifest.csv' -type f | wc -l)" -eq 23
+
+      - name: Assemble final M4B, M4A, chapters, reports, and package
+        run: python audiobook_job/render_chatterbox_hf_v2.py assemble
+
+      - name: Validate package and list final deliverables
+        run: |
+          find audiobook_job/build/final -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          unzip -t 'audiobook_job/build/final/The Son of Belle Starr - Complete Neural Audiobook Package.zip'
+          ffmpeg -v error -i 'audiobook_job/build/final/The Son of Belle Starr - Complete Neural Narrator.m4b' -f null -
+          cat audiobook_job/build/reports/delivery_summary.json
+
+      - name: Upload complete downloadable audiobook package
+        uses: actions/upload-artifact@v4
+        with:
+          name: The-Son-of-Belle-Starr-Deep-Western-Neural-Audiobook
+          path: |
+            audiobook_job/build/final/The Son of Belle Starr - Complete Neural Narrator.m4b
+            audiobook_job/build/final/The Son of Belle Starr - Complete Neural Narrator.m4a
+            audiobook_job/build/final/The Son of Belle Starr - Chapter Masters.zip
+            audiobook_job/build/final/The Son of Belle Starr - Complete Neural Audiobook Package.zip
+            audiobook_job/build/final/cover.jpg
+            audiobook_job/build/reports/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

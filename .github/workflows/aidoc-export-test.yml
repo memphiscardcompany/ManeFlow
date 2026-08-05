@@ -1,0 +1,41 @@
+name: Validate Exportable Neural Narrator
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/aidoc-export-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Download and decode HeyGen neural narration
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 5 --retry-delay 2 \
+            'https://resource2.heygen.ai/text_to_speech/d5812d0c48754a3db572157b156448a5/06c816b952f14fa9b3a6c42aa151f731/id=4c111ad2-e488-4a6a-8906-37f2537a92e0.wav' \
+            -o narrator-test.wav
+          test -s narrator-test.wav
+          file narrator-test.wav
+          ffprobe -v error -show_entries format=format_name,duration,size -of json narrator-test.wav | tee narrator-test.probe.json
+          ffmpeg -v error -i narrator-test.wav -f null -
+          sha256sum narrator-test.wav | tee narrator-test.sha256
+      - name: Upload validated test file
+        uses: actions/upload-artifact@v4
+        with:
+          name: exportable-neural-narrator-test
+          path: |
+            narrator-test.wav
+            narrator-test.sha256
+            narrator-test.probe.json
+          if-no-files-found: error
+          retention-days: 1

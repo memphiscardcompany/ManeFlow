@@ -1,0 +1,123 @@
+name: Build Portable Chatterbox Nano Runtime
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-chatterbox-nano-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build relocatable CPU-only Chatterbox Nano runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          RUNTIME="$GITHUB_WORKSPACE/chatterbox_nano_runtime"
+          mkdir -p "$RUNTIME/python" "$RUNTIME/model" "$RUNTIME/test"
+
+          PYROOT="$(python - <<'PY'
+          import sys
+          from pathlib import Path
+          print(Path(sys.executable).resolve().parent.parent)
+          PY
+          )"
+          cp -a "$PYROOT"/. "$RUNTIME/python/"
+          RP="${RUNTIME}/python/bin/python"
+
+          "$RP" -m pip install --upgrade pip setuptools wheel
+          "$RP" -m pip install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            'torch==2.6.0+cpu' 'torchaudio==2.6.0+cpu'
+
+          cat > "$RUNTIME/constraints.txt" <<'EOF'
+          torch==2.6.0+cpu
+          torchaudio==2.6.0+cpu
+          numpy==1.26.4
+          EOF
+
+          PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu \
+          "$RP" -m pip install \
+            --constraint "$RUNTIME/constraints.txt" \
+            'git+https://github.com/resemble-ai/chatterbox.git@master'
+
+          "$RP" - <<'PY'
+          from pathlib import Path
+          import inspect
+          from chatterbox.tts_turbo import ChatterboxTurboTTS
+          signature = str(inspect.signature(ChatterboxTurboTTS.from_local))
+          print({'from_local_signature': signature})
+          if 'nano' not in signature:
+              raise SystemExit('Current Chatterbox Nano loader was not installed')
+          PY
+
+          "$RP" - <<'PY'
+          from huggingface_hub import snapshot_download
+          snapshot_download(
+              repo_id='ResembleAI/chatterbox-nano',
+              local_dir='chatterbox_nano_runtime/model',
+              allow_patterns=['*.safetensors','*.json','*.txt','*.pt','*.model'],
+          )
+          PY
+
+          curl -L --fail --retry 4 \
+            'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/ca2c4c0b-626c-4e79-a2c7-b8c1eaa0b957.mp3' \
+            -o "$RUNTIME/test/deep_reference.mp3"
+
+          cat > "$RUNTIME/run_smoke.py" <<'PY'
+          import os
+          from pathlib import Path
+          import torch
+          import soundfile as sf
+          from chatterbox.tts_turbo import ChatterboxTurboTTS
+
+          root = Path(__file__).resolve().parent
+          torch.set_num_threads(max(1, min(5, os.cpu_count() or 1)))
+          torch.set_num_interop_threads(1)
+          model = ChatterboxTurboTTS.from_local(root / 'model', device='cpu', nano=True)
+          wav = model.generate(
+              'It was a false dawn when the match flared into life, revealing the gravestone that bore the name Belle Starr.',
+              audio_prompt_path=str(root / 'test' / 'deep_reference.mp3'),
+              temperature=0.72,
+              top_p=0.92,
+              top_k=800,
+              repetition_penalty=1.25,
+              norm_loudness=True,
+          )
+          audio = wav.squeeze().detach().cpu().numpy()
+          if audio.size < model.sr or float(abs(audio).max()) < 0.005:
+              raise SystemExit('Smoke narration is empty or implausibly short')
+          sf.write(root / 'test' / 'smoke.wav', audio, model.sr, subtype='PCM_16')
+          print({'samples': int(audio.size), 'sample_rate': model.sr, 'peak': float(abs(audio).max())})
+          PY
+
+          "$RP" "$RUNTIME/run_smoke.py"
+          ffprobe -v error \
+            -show_entries format=duration,size \
+            -show_entries stream=codec_name,sample_rate,channels \
+            -of json "$RUNTIME/test/smoke.wav"
+          ffmpeg -v error -i "$RUNTIME/test/smoke.wav" -f null -
+          "$RP" -m pip freeze > "$RUNTIME/requirements-freeze.txt"
+          sha256sum "$RUNTIME/test/deep_reference.mp3" "$RUNTIME/test/smoke.wav" > "$RUNTIME/test/SHA256SUMS.txt"
+          du -sh "$RUNTIME"
+
+      - name: Upload portable runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatterbox-nano-portable-linux-x86_64
+          path: chatterbox_nano_runtime/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 7

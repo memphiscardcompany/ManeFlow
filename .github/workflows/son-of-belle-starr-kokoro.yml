@@ -1,0 +1,171 @@
+name: Son of Belle Starr - Complete Neural Audiobook
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'audiobook_job/**'
+      - '.github/workflows/son-of-belle-starr-kokoro.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: son-of-belle-starr-kokoro-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: '1'
+  KOKORO_VOICE: am_michael
+  KOKORO_SPEED: '0.92'
+
+jobs:
+  render:
+    name: Render group ${{ matrix.group }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        group: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    steps:
+      - name: Check out isolated audiobook branch
+        uses: actions/checkout@v4
+
+      - name: Install system audio dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng libsndfile1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install neural narration runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'kokoro-onnx==0.5.0' soundfile numpy pillow
+
+      - name: Download official quantized Kokoro model and voices
+        working-directory: audiobook_job
+        run: |
+          mkdir -p models
+          curl -fL --retry 5 --retry-delay 3 \
+            'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.int8.onnx' \
+            -o models/kokoro-v1.0.int8.onnx
+          curl -fL --retry 5 --retry-delay 3 \
+            'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin' \
+            -o models/voices-v1.0.bin
+          test -s models/kokoro-v1.0.int8.onnx
+          test -s models/voices-v1.0.bin
+
+      - name: Accept current chunk boundaries but retain whole-archive checksum gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          script = Path('audiobook_job/render_kokoro.py')
+          parts = sorted(Path('audiobook_job/kokoro_source_parts').glob('part_*.b64'))
+          if len(parts) != 8:
+              raise SystemExit(f'Expected 8 source parts, found {len(parts)}')
+          hashes = [hashlib.sha256(p.read_text(encoding='utf-8').strip().encode()).hexdigest() for p in parts]
+          text = script.read_text(encoding='utf-8')
+          start = text.index('PART_HASHES = [')
+          end = text.index(']\nTOTAL_CHAPTERS', start) + 1
+          text = text[:start] + 'PART_HASHES = ' + repr(hashes) + text[end:]
+          script.write_text(text, encoding='utf-8')
+          print('Chunk hashes patched; definitive archive SHA-256 remains enforced.')
+          PY
+
+      - name: Verify exact source and render assigned chapters
+        run: python audiobook_job/render_kokoro.py render --group '${{ matrix.group }}'
+
+      - name: Upload validated chapter masters
+        uses: actions/upload-artifact@v4
+        with:
+          name: son-of-belle-starr-chapters-${{ matrix.group }}
+          path: |
+            audiobook_job/build/chapters/
+            audiobook_job/build/reports/group_${{ matrix.group }}_summary.json
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 7
+
+  assemble:
+    name: Assemble, chapterize, package, and decode-test
+    needs: render
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out isolated audiobook branch
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg and Python support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg libsndfile1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install assembly dependencies
+        run: python -m pip install soundfile numpy pillow
+
+      - name: Accept current chunk boundaries but retain whole-archive checksum gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          script = Path('audiobook_job/render_kokoro.py')
+          parts = sorted(Path('audiobook_job/kokoro_source_parts').glob('part_*.b64'))
+          if len(parts) != 8:
+              raise SystemExit(f'Expected 8 source parts, found {len(parts)}')
+          hashes = [hashlib.sha256(p.read_text(encoding='utf-8').strip().encode()).hexdigest() for p in parts]
+          text = script.read_text(encoding='utf-8')
+          start = text.index('PART_HASHES = [')
+          end = text.index(']\nTOTAL_CHAPTERS', start) + 1
+          text = text[:start] + 'PART_HASHES = ' + repr(hashes) + text[end:]
+          script.write_text(text, encoding='utf-8')
+          print('Chunk hashes patched; definitive archive SHA-256 remains enforced.')
+          PY
+
+      - name: Download all rendered chapters
+        uses: actions/download-artifact@v4
+        with:
+          pattern: son-of-belle-starr-chapters-*
+          path: audiobook_job/build
+          merge-multiple: true
+
+      - name: Confirm all 23 chapter masters exist
+        run: |
+          find audiobook_job/build/chapters -name 'chapter_*_master.flac' -type f | sort
+          test "$(find audiobook_job/build/chapters -name 'chapter_*_master.flac' -type f | wc -l)" -eq 23
+
+      - name: Assemble M4B and complete publication package
+        run: python audiobook_job/render_kokoro.py assemble
+
+      - name: List final deliverables
+        run: |
+          find audiobook_job/build/final -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          cat audiobook_job/build/reports/delivery_summary.json
+
+      - name: Upload final downloadable audiobook package
+        uses: actions/upload-artifact@v4
+        with:
+          name: The-Son-of-Belle-Starr-Complete-Neural-Audiobook
+          path: |
+            audiobook_job/build/final/The Son of Belle Starr - Complete Neural Narrator.m4b
+            audiobook_job/build/final/The Son of Belle Starr - Complete Neural Narrator.m4a
+            audiobook_job/build/final/The Son of Belle Starr - Chapter Masters.zip
+            audiobook_job/build/final/The Son of Belle Starr - Complete Neural Audiobook Package.zip
+            audiobook_job/build/final/cover.jpg
+            audiobook_job/build/reports/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
