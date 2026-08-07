@@ -86,6 +86,35 @@ function routeError(res, error) {
   });
 }
 
+function truthyQuery(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
+}
+
+function liveMarketSummary(pricing, forceRefresh = false) {
+  const refresh = pricing?.refresh || {};
+  const asking = pricing?.askingPriceContext || {};
+  const completedSalesAvailable = pricing?.status === 'valued_from_authorized_completed_sales'
+    || Number(pricing?.productionCompletedSaleCount || 0) > 0;
+  const completedSalesLive = refresh.performed === true;
+  const activeListingsLive = Array.isArray(asking.listings) && asking.listings.length > 0;
+  return {
+    requested: forceRefresh,
+    provider: refresh.provider || 'eBay',
+    completedSalesAvailable,
+    completedSalesLive,
+    activeListingsLive,
+    completedSaleCount: Number(pricing?.productionCompletedSaleCount || 0),
+    activeListingCount: Array.isArray(asking.listings) ? asking.listings.length : 0,
+    refreshReason: refresh.reason || null,
+    refreshError: refresh.error || null,
+    valuationUse: 'authorized_completed_sales_only',
+    askingPriceUse: 'context_only',
+    explanation: completedSalesAvailable
+      ? 'ManeFlow market value uses authorized completed-sale evidence. Active eBay listings are shown separately as asking-price context.'
+      : 'Valuation unavailable. Active eBay listings may still be shown as asking-price context, but they do not set market value.',
+  };
+}
+
 export function createAutomaticPricingRouter({
   config,
   store,
@@ -135,11 +164,16 @@ export function createAutomaticPricingRouter({
           json(res, 404, { error: 'CARD_NOT_FOUND' });
           return true;
         }
+        const forceRefresh = truthyQuery(url.searchParams.get('refresh'));
         const pricing = await pricingEngine.priceCard(card, {
           actor,
-          reason: 'authenticated_card_pricing_read',
+          force: forceRefresh,
+          reason: forceRefresh ? 'authenticated_live_market_refresh' : 'authenticated_card_pricing_read',
         });
-        json(res, 200, { pricing });
+        json(res, 200, {
+          pricing,
+          liveMarket: liveMarketSummary(pricing, forceRefresh),
+        });
         return true;
       }
 
@@ -172,6 +206,7 @@ export function createAutomaticPricingRouter({
         json(res, 200, {
           session,
           pricing,
+          liveMarket: pricing ? liveMarketSummary(pricing, false) : null,
           message: body.rejected
             ? 'Scan result rejected. No market value was generated.'
             : pricing
@@ -221,6 +256,7 @@ export function createAutomaticPricingRouter({
           item,
           merged: Boolean(item.merged),
           pricing,
+          liveMarket: liveMarketSummary(pricing, false),
           message: item.merged
             ? 'Existing Vault row quantity updated. ManeFlow recalculated market value automatically.'
             : 'Vault row created. ManeFlow calculated market value automatically from authorized completed-sale evidence.',
