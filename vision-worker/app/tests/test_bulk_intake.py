@@ -11,7 +11,8 @@ from app.main import app
 from app.services.bulk_intake import pair_scan_files
 
 
-client = TestClient(app)
+AUTH_HEADERS = {"Authorization": "Bearer test-maneflow-service-token"}
+client = TestClient(app, headers=AUTH_HEADERS)
 
 
 def _write_card(path: Path) -> None:
