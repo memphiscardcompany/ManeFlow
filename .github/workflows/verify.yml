@@ -12,180 +12,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
-  secret-history:
-    name: secret-history
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Fetch every branch for full-history scanning
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -Eeuo pipefail
-          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
-            fetch --force --prune origin '+refs/heads/*:refs/remotes/origin/*'
-          branch_count="$(git for-each-ref --format='%(refname)' refs/remotes/origin | grep -v '/HEAD  api-and-pwa:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - name: Verify reproducible public lockfile sources
-        run: node scripts/verify-lockfile-sources.mjs
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npm run verify
-      - run: npm run security:scan
-      - name: Build commit-closed source capsule
-        run: npm run package
-      - name: Verify source capsule inventory and evidence
-        run: npm run verify:release
-
-  vision-cpu:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: vision-worker
-    env:
-      MANEFLOW_COMPUTE_DEVICE: cpu
-      MANEFLOW_GPU_ALLOW_CPU_FALLBACK: "false"
-      EMBEDDING_ENABLED: "false"
-      CARD_DETECTOR_BACKEND: classical
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Record Python runtime
-        run: python3 --version
-      - name: Install deterministic CPU vision dependencies
-        run: python3 -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
-      - name: Run CPU-only vision tests
-        run: python3 -m pytest app/tests -q
-      - name: Verify GPU doctor fails safely to CPU on a non-GPU runner
-        run: python3 -m maneflow_vision.gpu.status
-      - name: Validate empty model registry and public dataset schema
-        run: |
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          registry = json.loads(Path('../artifacts/model-registry.json').read_text())
-          assert registry == {'schema_version': 1, 'models': []}
-          schema = json.loads(Path('../data/dataset-manifest.schema.json').read_text())
-          assert schema['title'] == 'ManeFlow dataset manifest record'
-          PY
-
-  container-build:
-    name: container-build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Build application container from the exact commit
-        run: |
-          set -Eeuo pipefail
-          docker build --pull \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --tag "maneflow-ci:${GITHUB_SHA}" \
-            .
-      - name: Build CPU-safe vision container from the exact commit
-        run: |
-          set -Eeuo pipefail
-          docker build --pull \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --tag "maneflow-vision-ci:${GITHUB_SHA}" \
-            ./vision-worker
-      - name: Verify non-root runtime contracts
-        run: |
-          set -Eeuo pipefail
-          test "$(docker image inspect --format '{{.Config.User}}' "maneflow-ci:${GITHUB_SHA}")" = "node"
-          test "$(docker image inspect --format '{{.Config.User}}' "maneflow-vision-ci:${GITHUB_SHA}")" = "maneflow"
-      - name: Smoke-test packaged application source
-        run: |
-          set -Eeuo pipefail
-          docker run --rm --entrypoint node "maneflow-ci:${GITHUB_SHA}" --check server.js
-          docker run --rm --entrypoint node "maneflow-ci:${GITHUB_SHA}" --check src/router.js
-      - name: Smoke-test packaged vision imports
-        run: |
-          set -Eeuo pipefail
-          docker run --rm \
-            --entrypoint python \
-            -e MANEFLOW_COMPUTE_DEVICE=cpu \
-            -e MANEFLOW_GPU_ALLOW_CPU_FALLBACK=false \
-            -e EMBEDDING_ENABLED=false \
-            -e CARD_DETECTOR_BACKEND=classical \
-            "maneflow-vision-ci:${GITHUB_SHA}" \
-            -c "from app.main import app; import maneflow_vision; assert app is not None; print('vision container import smoke passed')"
-      - name: Record image identities and sizes
-        run: |
-          set -Eeuo pipefail
-          docker image inspect \
-            --format '{{json .RepoTags}} {{json .Config.Labels}} {{.Size}}' \
-            "maneflow-ci:${GITHUB_SHA}" \
-            "maneflow-vision-ci:${GITHUB_SHA}"
-
-  native-client:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: apps/mobile-expo
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: apps/mobile-expo/package-lock.json
-      - name: Verify reproducible public lockfile sources
-        working-directory: .
-        run: node scripts/verify-lockfile-sources.mjs
-      - name: Pin the reviewed npm toolchain
-        run: npm install --global npm@11.16.0 --no-audit --no-fund
-      - name: Install native dependencies deterministically
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npm run typecheck
-      - run: npm audit --omit=dev --audit-level=high
- | wc -l)"
-          echo "Fetched ${branch_count} remote branches for secret-history scan."
-          test "$branch_count" -ge 1
-
-      - name: Install pinned Gitleaks v8.30.1
-        run: |
-          set -Eeuo pipefail
-          url="https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
-          curl --fail --location --silent --show-error "$url" -o "$RUNNER_TEMP/gitleaks.tar.gz"
-          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check -
-          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
-          "$RUNNER_TEMP/gitleaks" version
-
-      - name: Scan every fetched branch and full history for secrets
-        run: |
-          set -Eeuo pipefail
-          mkdir -p reports
-          "$RUNNER_TEMP/gitleaks" git . \
-            --redact \
-            --verbose \
-            --log-opts="--no-textconv --full-history --all --diff-filter=tuxdb" \
-            --report-format json \
-            --report-path reports/gitleaks-full-history.json
-
-      - name: Upload redacted Gitleaks report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: gitleaks-full-history-${{ github.run_id }}-${{ github.run_attempt }}
-          path: reports/gitleaks-full-history.json
-          if-no-files-found: warn
-          retention-days: 30
-
   api-and-pwa:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -309,3 +135,40 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck
       - run: npm audit --omit=dev --audit-level=high
+  secret-history:
+    name: secret-history
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch every branch for full-history scanning
+        run: |
+          set -Eeuo pipefail
+          git fetch --force --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          branch_count="$(git for-each-ref --format='%(refname)' refs/remotes/origin | grep -v '/HEAD$' | wc -l)"
+          echo "Fetched ${branch_count} remote branches for secret-history scan."
+          test "$branch_count" -ge 1
+      - name: Install pinned Gitleaks v8.30.1
+        run: |
+          set -Eeuo pipefail
+          url="https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+          curl --fail --location --silent --show-error "$url" -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" version
+      - name: Scan every fetched branch and full history for secrets
+        run: |
+          set -Eeuo pipefail
+          mkdir -p reports
+          "$RUNNER_TEMP/gitleaks" git . --redact --verbose --log-opts="--all --full-history" --report-format json --report-path reports/gitleaks-full-history.json
+      - name: Upload redacted Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gitleaks-full-history-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/gitleaks-full-history.json
+          if-no-files-found: warn
+          retention-days: 30
