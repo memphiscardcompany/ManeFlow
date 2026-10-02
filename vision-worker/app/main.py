@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.corrections import router as corrections_router
@@ -8,6 +9,7 @@ from app.api.lots import router as lots_router
 from app.api.intake import router as intake_router
 from app.api.scan import router as scan_router
 from app.core.config import settings
+from app.core.security import bearer_token_matches
 from app.services.imaging.embedding_engine import embedding_engine
 from app.services.imaging.detector_router import detector_readiness
 from maneflow_vision.gpu.runtime import detect_cuda_capability, resolve_compute_device
@@ -24,10 +26,32 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=False if "*" in settings.cors_origins else True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin"],
 )
+
+
+@app.middleware("http")
+async def require_service_auth(request: Request, call_next):
+    if request.url.path == "/health" or request.method == "OPTIONS":
+        return await call_next(request)
+
+    if not (settings.maneflow_service_token or "").strip():
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Vision worker service authentication is not configured."},
+        )
+
+    if not bearer_token_matches(request.headers.get("authorization")):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Invalid or missing bearer token."},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return await call_next(request)
+
 
 app.include_router(scan_router, prefix="/v1")
 app.include_router(corrections_router, prefix="/v1")
