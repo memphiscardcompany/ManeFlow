@@ -114,53 +114,6 @@ jobs:
             "maneflow-vision-ci:${GITHUB_SHA}"
 
 
-  mobile-audit-lockfile-repair:
-    name: mobile-audit-lockfile-repair
-    if: github.event_name == 'push' && github.ref == 'refs/heads/audit-hardening-20261002'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: apps/mobile-expo/package-lock.json
-      - name: Pin the reviewed npm toolchain
-        run: npm install --global npm@11.16.0 --no-audit --no-fund
-      - name: Generate non-breaking mobile audit lockfile repair
-        working-directory: apps/mobile-expo
-        run: |
-          set +e
-          npm audit fix --omit=dev --package-lock-only --no-fund
-          audit_fix_status=$?
-          set -e
-          echo "npm audit fix exit status: $audit_fix_status"
-          test -s package-lock.json
-          npm audit --omit=dev --audit-level=high || true
-      - name: Commit non-breaking mobile lockfile repair
-        run: |
-          set -Eeuo pipefail
-          git add apps/mobile-expo/package-lock.json
-          if git diff --cached --quiet; then
-            echo "No mobile lockfile changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix(mobile): apply non-breaking npm audit lock updates"
-          git push origin HEAD:audit-hardening-20261002
-
-      - name: Upload repaired mobile lockfile
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: mobile-audit-fixed-lock-${{ github.sha }}
-          path: apps/mobile-expo/package-lock.json
-          if-no-files-found: error
-          retention-days: 1
-
   native-client:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
