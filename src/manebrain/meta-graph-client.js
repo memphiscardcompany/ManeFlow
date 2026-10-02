@@ -60,8 +60,18 @@ function providerMetadata(response, payload = null) {
   };
 }
 
-function isRetryableResponse(status, metadata) {
-  return metadata.providerTransient === true || status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+const META_RATE_LIMIT_ERROR_CODES = new Set([4, 17, 32, 613]);
+
+function isExplicitRateLimit(status, metadata) {
+  return status === 429 || META_RATE_LIMIT_ERROR_CODES.has(Number(metadata.providerCode));
+}
+
+function isAmbiguousProviderOutcome(status, metadata) {
+  return metadata.providerTransient === true
+    || status === 408
+    || status === 409
+    || status === 425
+    || status >= 500;
 }
 
 function outputMessageId(payload) {
@@ -229,10 +239,26 @@ export class MetaGraphClient {
     }
     const metadata = { channel: request.channel, ...providerMetadata(response, payload) };
     if (!response.ok) {
+      if (isExplicitRateLimit(response.status, metadata)) {
+        throw new MetaGraphDispatchError('Meta Graph rate-limited the request before provider acceptance.', {
+          code: 'META_GRAPH_RATE_LIMITED',
+          certainty: 'rejected_before_acceptance',
+          retryable: true,
+          responseMetadata: metadata,
+        });
+      }
+      if (isAmbiguousProviderOutcome(response.status, metadata)) {
+        throw new MetaGraphDispatchError('Meta Graph returned an ambiguous response; delivery outcome is unknown.', {
+          code: 'META_GRAPH_OUTCOME_UNKNOWN',
+          certainty: 'outcome_unknown',
+          retryable: false,
+          responseMetadata: metadata,
+        });
+      }
       throw new MetaGraphDispatchError('Meta Graph rejected the request before provider acceptance.', {
         code: 'META_GRAPH_REJECTED',
         certainty: 'rejected_before_acceptance',
-        retryable: isRetryableResponse(response.status, metadata),
+        retryable: false,
         responseMetadata: metadata,
       });
     }
