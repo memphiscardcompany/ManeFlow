@@ -32,11 +32,11 @@ test('release workflows pin third-party actions to immutable commits', async () 
 
 test('release credentials are scoped to individual steps rather than whole jobs', async () => {
   const mobile = await fs.readFile(new URL('../.github/workflows/mobile-store-release.yml', import.meta.url), 'utf8');
-  assert.doesNotMatch(mobile, /jobs:[\s\S]{0,800}?env:\s*\n\s+EXPO_TOKEN:/);
+  assert.doesNotMatch(mobile, /\n    env:\n      EXPO_TOKEN:/);
   assert.match(mobile, /name: Build signed iOS[\s\S]{0,220}?env:\s*\n\s+EXPO_TOKEN:/);
   assert.match(mobile, /name: Submit exact production builds[\s\S]{0,220}?env:\s*\n\s+EXPO_TOKEN:/);
 
   const windows = await fs.readFile(new URL('../.github/workflows/windows-signed-release.yml', import.meta.url), 'utf8');
-  assert.doesNotMatch(windows, /jobs:[\s\S]{0,800}?env:\s*\n\s+CSC_LINK:/);
+  assert.doesNotMatch(windows, /\n    env:\n      CSC_LINK:/);
   assert.match(windows, /name: Build signed installer[\s\S]{0,260}?CSC_LINK:/);
 });
