@@ -707,7 +707,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
       if (!actor?.user) return unauthorized(res);
       try {
         const body = await readJson(req, 100_000);
-        const valid = await verifyPassword(body.password, actor.user.passwordSalt, actor.user.passwordHash);
+        const valid = await verifyPassword(body.password, actor.user.passwordSalt, actor.user.passwordHash, actor.user.passwordParams);
         if (!valid) return json(res, 401, { error: 'invalid_credentials', message: 'Password is incorrect.' });
         await store.audit({ type: 'account_deleted', userId: actor.userId, ip: requestIp(req) });
         await store.deleteUser(actor.userId);
