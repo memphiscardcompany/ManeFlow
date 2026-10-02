@@ -300,6 +300,98 @@ export class MetaInboundRepository {
     });
   }
 
+  async deadLetterEvents(ownerUserId, {
+    events,
+    payloadSha256,
+    errorCode = 'META_WEBHOOK_STALE',
+  }) {
+    if (!Array.isArray(events) || events.length < 1 || events.length > 5_000) {
+      throw new TypeError('events must contain between 1 and 5000 normalized events.');
+    }
+    const hash = string(payloadSha256, 'payloadSha256', 64);
+    if (!/^[a-f0-9]{64}$/i.test(hash)) throw new TypeError('payloadSha256 must be a SHA-256 digest.');
+    const normalizedErrorCode = string(errorCode, 'errorCode', 160);
+    const normalized = events.map(assertEvent);
+
+    return this.withOwnerTransaction(ownerUserId, async (client, ownerId) => {
+      const inserted = await client.query(`
+        WITH input AS (
+          SELECT *
+          FROM jsonb_to_recordset($4::jsonb) AS event(
+            "providerAccountId" text,
+            "providerEventId" text,
+            "receivedAt" timestamptz
+          )
+        )
+        INSERT INTO public.manebrain_webhook_events (
+          owner_user_id,
+          provider_account_id,
+          provider_event_id,
+          payload_sha256,
+          received_at,
+          normalized_at,
+          status,
+          error_code
+        )
+        SELECT
+          $1,
+          input."providerAccountId",
+          input."providerEventId",
+          $2,
+          input."receivedAt",
+          clock_timestamp(),
+          'DEAD_LETTER',
+          $3
+        FROM input
+        ON CONFLICT (owner_user_id, provider_account_id, provider_event_id) DO NOTHING
+        RETURNING provider_event_id
+      `, [ownerId, hash, normalizedErrorCode, JSON.stringify(normalized)]);
+
+      const deadLettered = inserted.rows.map((row) => row.provider_event_id);
+      if (deadLettered.length) {
+        await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [ownerId]);
+        const previous = await client.query(`
+          SELECT entry_hash
+          FROM public.manebrain_audit_log
+          WHERE owner_user_id = $1
+          ORDER BY created_at DESC, id DESC
+          LIMIT 1
+        `, [ownerId]);
+        const previousHash = previous.rows[0]?.entry_hash || null;
+        const auditEvent = {
+          errorCode: normalizedErrorCode,
+          deadLettered: deadLettered.length,
+          providerEventIds: deadLettered,
+          payloadSha256: hash,
+        };
+        const auditMaterial = JSON.stringify(auditEvent);
+        const entryHash = crypto.createHash('sha256')
+          .update(`${previousHash || ''}|${auditMaterial}`)
+          .digest('hex');
+        await client.query(`
+          INSERT INTO public.manebrain_audit_log (
+            owner_user_id,
+            actor_type,
+            actor_id,
+            event_type,
+            event,
+            previous_hash,
+            entry_hash
+          )
+          VALUES ($1, 'meta_webhook', 'meta', 'inbound_dead_lettered', $2::jsonb, $3, $4)
+        `, [ownerId, auditMaterial, previousHash, entryHash]);
+      }
+
+      const insertedIds = new Set(deadLettered);
+      return {
+        deadLettered,
+        duplicates: normalized
+          .filter((event) => !insertedIds.has(event.providerEventId))
+          .map((event) => event.providerEventId),
+      };
+    });
+  }
+
   async listConversations(ownerUserId, { limit = 50, beforeUpdatedAt = null, beforeId = null } = {}) {
     const normalizedLimit = pageLimit(limit);
     if (Boolean(beforeUpdatedAt) !== Boolean(beforeId)) {
