@@ -24,6 +24,7 @@ export async function ingestMetaWebhook({
   repository,
   ownerUserId,
   now = Date.now(),
+  logger = console,
 }) {
   if (config.metaIntakeEnabled !== true || config.metaKillSwitch !== false) {
     return { status: 503, body: { error: 'META_INTAKE_DISABLED' } };
@@ -57,15 +58,41 @@ export async function ingestMetaWebhook({
     };
   }
   const acceptedEvents = [];
+  const staleEvents = [];
   let rejected = normalized.ignored.length;
   for (const event of normalized.events) {
     const asset = validateMetaAsset(event, config);
-    if (!asset.allowed || !isTimestampAcceptable(Date.parse(event.receivedAt), { now })) {
+    if (!asset.allowed) {
+      rejected += 1;
+      continue;
+    }
+    if (!isTimestampAcceptable(Date.parse(event.receivedAt), { now })) {
+      staleEvents.push(event);
       rejected += 1;
       continue;
     }
     acceptedEvents.push(event);
   }
+
+  const digest = payloadSha256(bytes);
+  let staleResult = { deadLettered: [], duplicates: [] };
+  if (staleEvents.length) {
+    if (typeof repository.deadLetterEvents !== 'function') {
+      return { status: 503, body: { error: 'META_DEAD_LETTER_NOT_READY' } };
+    }
+    staleResult = await repository.deadLetterEvents(ownerUserId, {
+      events: staleEvents,
+      payloadSha256: digest,
+      errorCode: 'META_WEBHOOK_STALE',
+    });
+    logger?.warn?.(JSON.stringify({
+      event: 'meta_webhook_stale_dead_lettered',
+      errorCode: 'META_WEBHOOK_STALE',
+      deadLettered: staleResult.deadLettered.length,
+      duplicates: staleResult.duplicates.length,
+    }));
+  }
+
   if (!acceptedEvents.length) {
     return {
       status: 202,
@@ -73,12 +100,13 @@ export async function ingestMetaWebhook({
         accepted: 0,
         duplicates: 0,
         rejected,
+        deadLettered: staleResult.deadLettered.length,
       },
     };
   }
   const result = await repository.ingestBatch(ownerUserId, {
     events: acceptedEvents,
-    payloadSha256: payloadSha256(bytes),
+    payloadSha256: digest,
   });
   const echoes = acceptedEvents.filter((event) => event.isEcho === true);
   if (echoes.length && typeof repository.reconcileEchoes === 'function') {
@@ -90,6 +118,7 @@ export async function ingestMetaWebhook({
       accepted: result.accepted.length,
       duplicates: result.duplicates.length,
       rejected,
+      deadLettered: staleResult.deadLettered.length,
     },
   };
 }
