@@ -38,6 +38,12 @@ test('recognition benchmark parses dataset-style label rows and reports accuracy
   assert.equal(report.metrics.top3Accuracy, 100);
   assert.equal(report.policy.benchmarkOnly, true);
   assert.equal(report.policy.doesNotCreateMarketValues, true);
+  assert.equal(report.qualification.claimEligible, false);
+  assert.ok(report.qualification.blockers.includes('REAL_IMAGE_LIVE_VISION_EVIDENCE_INCOMPLETE'));
+  assert.equal(report.selectiveRecognition.cards, 2);
+  assert.equal(report.selectiveRecognition.curve.length, 7);
+  assert.equal(report.selectiveRecognition.byCardType.tcg.cards, 1);
+  assert.equal(report.selectiveRecognition.byCardType.raw_card.cards, 1);
 });
 
 test('recognition benchmark refuses to score ground-truth labels as model observations', () => {
@@ -55,4 +61,26 @@ test('recognition benchmark refuses to score ground-truth labels as model observ
   assert.ok(report.recommendations.some((entry) => /observed|ground-truth|labels/i.test(entry)));
   assert.equal(report.rows[0].scorable, false);
   assert.equal(report.policy.doesNotPublishDatasetImages, true);
+});
+
+
+test('recognition accuracy claims require enough held-out scorable live-image evidence including multi-card scenes', () => {
+  const cases = Array.from({ length: 30 }, (_, index) => ({
+    id: `heldout_${index + 1}`,
+    split: 'heldout',
+    sceneType: index === 0 ? 'multi_card_table' : 'single_card',
+    benchmarkEvidence: { realImage: true, liveVision: true, heldOut: true },
+    manualText: '2018 Topps Update Shohei Ohtani US1',
+    expectedCards: index === 0
+      ? [
+        { player: 'Shohei Ohtani', year: 2018, brand: 'Topps', set: 'Update Series', cardNumber: 'US1' },
+        { player: 'Shohei Ohtani', year: 2018, brand: 'Topps', set: 'Update Series', cardNumber: 'US1' },
+      ]
+      : [{ player: 'Shohei Ohtani', year: 2018, brand: 'Topps', set: 'Update Series', cardNumber: 'US1' }],
+  }));
+  const report = runRecognitionBenchmark(cases, { cards, enrichCard: (card) => card });
+  assert.equal(report.qualification.claimEligible, true);
+  assert.equal(report.qualification.heldOutExpectedCards, 31);
+  assert.equal(report.qualification.heldOutMultiCardCases, 1);
+  assert.deepEqual(report.qualification.blockers, []);
 });
