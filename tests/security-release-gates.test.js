@@ -92,12 +92,13 @@ test('public signup cannot self-assign owner authority and creates no pre-verifi
       role: 'admin',
     }),
   });
-  assert.equal(created.response.status, 201);
+  assert.equal(created.response.status, 202);
   assert.equal(created.cookie, '');
-  assert.equal(created.body.authenticated, false);
-  assert.equal(created.body.user.role, 'collector');
-  assert.equal(store.findUserByEmail('owner@example.com').role, 'collector');
-  assert.equal(store.listSessions(created.body.user.id).length, 0);
+  assert.equal(created.body.authenticated, undefined);
+  assert.equal(created.body.user, undefined);
+  const ownerUser = store.findUserByEmail('owner@example.com');
+  assert.equal(ownerUser.role, 'collector');
+  assert.equal(store.listSessions(ownerUser.id).length, 0);
 
   const dashboard = await request('/api/dashboard');
   assert.equal(dashboard.response.status, 401);
@@ -110,10 +111,13 @@ test('public signup cannot self-assign owner authority and creates no pre-verifi
   assert.equal(blockedLogin.response.status, 403);
   assert.equal(blockedLogin.body.error, 'email_not_verified');
 
+  const verificationMessage = store.state.outbox.find((item) => item.type === 'verify_email' && item.to === 'owner@example.com');
+  const verificationToken = new URL(verificationMessage.actionUrl).hash.match(/verify=([^&]+)/)?.[1];
+  assert.ok(verificationToken);
   const verified = await request('/api/auth/verify-email', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ token: created.body.verification.token }),
+    body: JSON.stringify({ token: decodeURIComponent(verificationToken) }),
   });
   assert.equal(verified.response.status, 200);
 });
