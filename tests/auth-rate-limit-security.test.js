@@ -72,7 +72,8 @@ before(async () => {
     email: 'rate-limit@example.test',
     password: 'correct-password-123',
   });
-  assert.equal(registered.response.status, 201);
+  assert.equal(registered.response.status, 202);
+  assert.equal(registered.body.queued, true);
 });
 
 after(async () => {
