@@ -88,6 +88,11 @@ export function normalizeBenchmarkCase(input = {}, { sourceName = 'Recognition B
     sourceName: clean(row.sourceName || sourceName, 200),
     split: clean(row.split || 'evaluation', 80),
     imageRef: clean(row.imageRef || row.imageUrl || row.imagePath || row.fileName || row.imageName, 1000),
+    benchmarkEvidence: {
+      realImage: row.benchmarkEvidence?.realImage === true || row.realImage === true,
+      liveVision: row.benchmarkEvidence?.liveVision === true || row.liveVision === true,
+      heldOut: row.benchmarkEvidence?.heldOut === true || ['evaluation', 'test', 'validation', 'heldout', 'holdout'].includes(clean(row.split || 'evaluation', 80).toLowerCase()),
+    },
     sceneType,
     expectedCards,
     scorable: hasObservedInput,
@@ -164,6 +169,86 @@ function fieldScore(expected = {}, facts = {}) {
     details[key] = Boolean(value);
   }
   return { total, correct, details };
+}
+
+function benchmarkCardType(expected = {}, row = {}) {
+  const scene = normalizeText(row.sceneExpected || '');
+  const brand = normalizeText(expected.brand || '');
+  if (expected.productType || expected.productName || scene.includes('sealed')) return 'sealed_product';
+  if (expected.grader || expected.grade || expected.certNumber || scene.includes('slab')) return 'slabbed';
+  if (/(pokemon|magic|gathering|yu gi oh|yugioh|lorcana|tcg)/.test(brand)) return 'tcg';
+  return 'raw_card';
+}
+
+function selectiveRecognitionMetrics(rows = []) {
+  const cards = rows
+    .filter((row) => row.scorable !== false)
+    .flatMap((row) => safeArray(row.perCard).map((card) => ({
+      ...card,
+      cardType: benchmarkCardType(card.expected, row),
+    })));
+  const thresholds = [0.5, 0.6, 0.7, 0.8, 0.86, 0.9, 0.95];
+
+  function curveFor(items) {
+    return thresholds.map((threshold) => {
+      const accepted = items.filter((item) => (
+        Number.isFinite(Number(item.bestConfidence))
+        && Number(item.bestConfidence) >= threshold
+        && item.needsConfirmation !== true
+      ));
+      const correct = accepted.filter((item) => item.top1 === true).length;
+      const wrong = accepted.length - correct;
+      return {
+        threshold,
+        accepted: accepted.length,
+        correct,
+        confidentWrong: wrong,
+        precision: pct(correct, accepted.length),
+        coverage: pct(accepted.length, items.length),
+        abstainRate: pct(items.length - accepted.length, items.length),
+      };
+    });
+  }
+
+  const byCardType = {};
+  for (const cardType of [...new Set(cards.map((item) => item.cardType))].sort()) {
+    const items = cards.filter((item) => item.cardType === cardType);
+    byCardType[cardType] = {
+      cards: items.length,
+      curve: curveFor(items),
+    };
+  }
+
+  return {
+    cards: cards.length,
+    curve: curveFor(cards),
+    byCardType,
+  };
+}
+
+function benchmarkQualification(cases = []) {
+  const qualifyingSplits = new Set(['evaluation', 'test', 'validation', 'heldout', 'holdout']);
+  const labeledCases = cases.filter((item) => safeArray(item.expectedCards).length > 0);
+  const heldOutCases = labeledCases.filter((item) => qualifyingSplits.has(String(item.split || '').toLowerCase()) && item.benchmarkEvidence?.heldOut === true);
+  const realVisionCases = heldOutCases.filter((item) => item.benchmarkEvidence?.realImage === true && item.benchmarkEvidence?.liveVision === true);
+  const expectedCards = realVisionCases.reduce((sum, item) => sum + safeArray(item.expectedCards).length, 0);
+  const multiCardCases = realVisionCases.filter((item) => safeArray(item.expectedCards).length > 1 || ['binder_page', 'multi_card_table', 'mixed_raw_slab'].includes(item.sceneType)).length;
+  const blockers = [];
+  if (!labeledCases.length) blockers.push('NO_LABELED_CASES');
+  if (heldOutCases.length !== labeledCases.length) blockers.push('NON_HELD_OUT_CASES_PRESENT');
+  if (realVisionCases.length !== labeledCases.length) blockers.push('REAL_IMAGE_LIVE_VISION_EVIDENCE_INCOMPLETE');
+  if (expectedCards < 30) blockers.push('INSUFFICIENT_HELD_OUT_CARD_COUNT');
+  if (multiCardCases < 1) blockers.push('NO_MULTI_CARD_HELD_OUT_CASE');
+  return {
+    claimEligible: blockers.length === 0,
+    labeledCases: labeledCases.length,
+    heldOutCases: heldOutCases.length,
+    realImageLiveVisionCases: realVisionCases.length,
+    heldOutExpectedCards: expectedCards,
+    heldOutMultiCardCases: multiCardCases,
+    minimumExpectedCards: 30,
+    blockers,
+  };
 }
 
 function recommendation(metrics = {}) {
@@ -394,6 +479,8 @@ export function runRecognitionBenchmark(cases = [], {
     version: RECOGNITION_BENCHMARK_VERSION,
     generatedAt: now.toISOString(),
     metrics,
+    qualification: benchmarkQualification(normalizedCases),
+    selectiveRecognition: selectiveRecognitionMetrics(rows),
     fieldBreakdown,
     sceneBreakdown,
     multiCardFocus,
