@@ -84,6 +84,30 @@ test('Meta inbox rejects same provider event ID with different signed payload by
   assert.equal(fixture.calls.some((call) => call.text.includes('inserted_events AS')), false);
 });
 
+test('stale Meta events are durably dead-lettered with an audit record', async () => {
+  const fixture = fakePool((sql) => {
+    if (sql.includes('INSERT INTO public.manebrain_webhook_events') && sql.includes("'DEAD_LETTER'")) {
+      return { rows: [{ provider_event_id: 'mid.1' }], rowCount: 1 };
+    }
+    if (sql.includes('SELECT entry_hash')) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 0 };
+  });
+  const repository = new MetaInboundRepository(fixture.pool);
+  const result = await repository.deadLetterEvents(ownerId, {
+    events: [event],
+    payloadSha256: digest,
+    errorCode: 'META_WEBHOOK_STALE',
+  });
+
+  assert.deepEqual(result, { deadLettered: ['mid.1'], duplicates: [] });
+  const insert = fixture.calls.find((call) => call.text.includes('INSERT INTO public.manebrain_webhook_events'));
+  assert.match(insert.text, /'DEAD_LETTER'/);
+  assert.match(insert.text, /error_code/);
+  assert.equal(insert.values[2], 'META_WEBHOOK_STALE');
+  assert.ok(fixture.calls.some((call) => call.text.includes("'inbound_dead_lettered'")));
+  assert.deepEqual(fixture.calls.slice(-2).map((call) => call.text), ['COMMIT', 'RELEASE']);
+});
+
 test('Meta inbox pagination requires a complete keyset cursor', async () => {
   const fixture = fakePool(() => ({ rows: [], rowCount: 0 }));
   const repository = new MetaInboundRepository(fixture.pool);
