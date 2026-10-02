@@ -11,6 +11,7 @@ from uuid import uuid4
 from PIL import ExifTags, Image
 
 from app.core.config import settings
+from app.core.security import resolve_import_folder
 from app.models.schemas import PredictedCard
 from app.services.bulk_intake_repository import bulk_intake_repository
 from app.services.identity_engine import IdentityResult, identity_engine
@@ -99,7 +100,7 @@ class UnorderedPhotoIntakeService:
     """
 
     async def import_folder(self, request: dict[str, Any]) -> dict[str, Any]:
-        folder = Path(request['folder_path']).expanduser().resolve()
+        folder = resolve_import_folder(request['folder_path'])
         if not folder.exists() or not folder.is_dir():
             raise ValueError('The selected photo folder does not exist or is not a directory.')
 
