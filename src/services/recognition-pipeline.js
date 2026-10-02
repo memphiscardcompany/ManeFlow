@@ -1,4 +1,5 @@
 import { recognizeCardScene } from './recognition-engine.js';
+import { resolveRecognitionDomainPack } from './recognition-domain-packs.js';
 import { evaluateRecognitionQuality } from './recognition-quality-gate.js';
 import { routeRecognitionScene } from './recognition-scene-router.js';
 
@@ -127,6 +128,17 @@ export function runRecognitionPipeline(input = {}) {
 
   const routing = routeRecognitionScene(detectorInput(input));
   const quality = qualityForRegions(input.sceneAnalysis, input.vision);
+  const domain = resolveRecognitionDomainPack({
+    cards: input.cards,
+    body: input.body,
+    sceneAnalysis: input.sceneAnalysis,
+    vision: input.vision,
+    candidateScope: input.candidateScope,
+  });
+  const recognitionInput = {
+    ...input,
+    candidateScope: domain.candidateScope,
+  };
   if (!routing.plan.allowCardRecord) {
     return {
       version: RECOGNITION_PIPELINE_VERSION,
@@ -134,6 +146,7 @@ export function runRecognitionPipeline(input = {}) {
       dedicatedRoutingEnabled: true,
       routing,
       quality,
+      domain,
       recognition: {
         version: RECOGNITION_PIPELINE_VERSION,
         generatedAt: new Date().toISOString(),
@@ -166,13 +179,14 @@ export function runRecognitionPipeline(input = {}) {
     };
   }
 
-  const recognition = applyQualityBoundary(recognizeCardScene(input), quality);
+  const recognition = applyQualityBoundary(recognizeCardScene(recognitionInput), quality);
   return {
     version: RECOGNITION_PIPELINE_VERSION,
     mode: 'dedicated_routing',
     dedicatedRoutingEnabled: true,
     routing,
     quality,
+    domain,
     recognition: {
       ...recognition,
       trustPolicy: {
