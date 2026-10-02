@@ -69,68 +69,142 @@ export class MetaOutboundRepository {
     }
   }
 
-  async claimNext(ownerUserId, { dispatchAllowed = false } = {}) {
+  async claimNext(ownerUserId, {
+    dispatchAllowed = false,
+    activeOwnerUserIds = [],
+    approvalMaxAgeMs = 900_000,
+    now = Date.now(),
+  } = {}) {
     if (dispatchAllowed !== true) {
       throw new MetaOutboundRepositoryError('Meta dispatch is disabled by policy.', { code: 'META_DISPATCH_DISABLED' });
     }
-    const leaseToken = crypto.randomUUID();
-    const attemptId = crypto.randomUUID();
-    return this.withOwnerTransaction(ownerUserId, async (client, ownerId) => {
-      const result = await client.query(`
-        WITH candidate AS (
-          SELECT id
-          FROM public.manebrain_outbound_jobs
-          WHERE owner_user_id = $1
-            AND status IN ('SEND_QUEUED', 'RETRY_WAIT')
-            AND available_at <= clock_timestamp()
-            AND attempts < max_attempts
-          ORDER BY available_at, created_at
-          FOR UPDATE SKIP LOCKED
+    const ownerId = uuid(ownerUserId, 'ownerUserId');
+    const allowedOwners = new Set((activeOwnerUserIds || []).map((value) => uuid(value, 'activeOwnerUserId')));
+    const maximumApprovalAgeMs = positiveInteger(approvalMaxAgeMs, 'approvalMaxAgeMs', 86_400_000);
+    const nowMs = Number(now);
+    if (!Number.isFinite(nowMs)) throw new TypeError('now must be a finite epoch timestamp.');
+
+    const approvalHashMatches = (row) => {
+      const expected = String(row.approved_text_sha256 || '').trim().toLowerCase();
+      if (!/^[a-f0-9]{64}$/.test(expected)) return false;
+      const actual = crypto.createHash('sha256').update(Buffer.from(String(row.approved_text || ''), 'utf8')).digest('hex');
+      return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
+    };
+
+    const approvalIsFresh = (row) => {
+      const approvedAtMs = Date.parse(String(row.approved_at || ''));
+      return Number.isFinite(approvedAtMs)
+        && approvedAtMs <= nowMs + 60_000
+        && nowMs - approvedAtMs <= maximumApprovalAgeMs;
+    };
+
+    return this.withOwnerTransaction(ownerId, async (client) => {
+      for (let guard = 0; guard < 100; guard += 1) {
+        const candidate = await client.query(`
+          SELECT
+            job.*,
+            conversation.channel,
+            conversation.provider_account_id,
+            conversation.provider_conversation_id,
+            conversation.provider_sender_id,
+            draft.target_provider_message_id
+          FROM public.manebrain_outbound_jobs AS job
+          JOIN public.manebrain_conversations AS conversation
+            ON conversation.id = job.conversation_id
+           AND conversation.owner_user_id = job.owner_user_id
+          JOIN public.manebrain_reply_drafts AS draft
+            ON draft.id = job.draft_id
+           AND draft.owner_user_id = job.owner_user_id
+          WHERE job.owner_user_id = $1
+            AND job.status IN ('SEND_QUEUED', 'RETRY_WAIT')
+            AND job.available_at <= clock_timestamp()
+            AND job.attempts < job.max_attempts
+          ORDER BY job.available_at, job.created_at
+          FOR UPDATE OF job SKIP LOCKED
           LIMIT 1
-        ),
-        claimed AS (
-          UPDATE public.manebrain_outbound_jobs AS job
-          SET status = 'DISPATCHING',
-              attempts = job.attempts + 1,
-              lease_token = $2,
-              lease_expires_at = clock_timestamp() + ($3 * interval '1 millisecond'),
-              last_attempt_id = $4,
-              updated_at = clock_timestamp()
-          FROM candidate
-          WHERE job.id = candidate.id
-          RETURNING job.*
-        ),
-        attempt AS (
-          INSERT INTO public.manebrain_outbound_attempts (
-            id, owner_user_id, outbound_job_id, attempt_number, lease_token, state
+        `, [ownerId]);
+        const row = candidate.rows[0];
+        if (!row) return null;
+
+        let policyFailure = null;
+        let failureStatus = 'HELD_POLICY_REVIEW';
+        if (!allowedOwners.has(ownerId) || String(row.approved_by || '') !== ownerId) {
+          policyFailure = 'META_APPROVAL_OWNER_REVOKED';
+          failureStatus = 'DEAD_LETTER';
+        } else if (!approvalHashMatches(row)) {
+          policyFailure = 'META_APPROVAL_TEXT_HASH_MISMATCH';
+        } else if (!approvalIsFresh(row)) {
+          policyFailure = 'META_APPROVAL_EXPIRED';
+        } else if (!String(row.target_provider_message_id || '').trim()) {
+          policyFailure = 'META_APPROVAL_TARGET_MISSING';
+        }
+
+        if (policyFailure) {
+          await client.query(`
+            UPDATE public.manebrain_outbound_jobs
+            SET status = $3,
+                last_error_code = $4,
+                delivery_certainty = CASE WHEN $3 = 'DEAD_LETTER' THEN 'rejected_before_acceptance' ELSE NULL END,
+                terminal_at = CASE WHEN $3 = 'DEAD_LETTER' THEN clock_timestamp() ELSE NULL END,
+                lease_token = NULL,
+                lease_expires_at = NULL,
+                updated_at = clock_timestamp()
+            WHERE owner_user_id = $1 AND id = $2
+          `, [ownerId, row.id, failureStatus, policyFailure]);
+          continue;
+        }
+
+        const leaseToken = crypto.randomUUID();
+        const attemptId = crypto.randomUUID();
+        const claimed = await client.query(`
+          WITH updated AS (
+            UPDATE public.manebrain_outbound_jobs
+            SET status = 'DISPATCHING',
+                attempts = attempts + 1,
+                lease_token = $3,
+                lease_expires_at = clock_timestamp() + ($4 * interval '1 millisecond'),
+                last_attempt_id = $5,
+                updated_at = clock_timestamp()
+            WHERE owner_user_id = $1
+              AND id = $2
+              AND status IN ('SEND_QUEUED', 'RETRY_WAIT')
+            RETURNING *
+          ),
+          attempt AS (
+            INSERT INTO public.manebrain_outbound_attempts (
+              id, owner_user_id, outbound_job_id, attempt_number, lease_token, state
+            )
+            SELECT $5, $1, id, attempts, $3, 'DISPATCHING'
+            FROM updated
+            RETURNING id
           )
-          SELECT $4, $1, id, attempts, $2, 'DISPATCHING'
-          FROM claimed
-          RETURNING id
-        )
-        SELECT
-          claimed.*,
-          conversation.channel,
-          conversation.provider_account_id,
-          conversation.provider_conversation_id,
-          conversation.provider_sender_id,
-          latest_inbound.provider_message_id AS target_provider_message_id
-        FROM claimed
-        JOIN attempt ON attempt.id = claimed.last_attempt_id
-        JOIN public.manebrain_conversations AS conversation
-          ON conversation.id = claimed.conversation_id
-         AND conversation.owner_user_id = claimed.owner_user_id
-        LEFT JOIN LATERAL (
-          SELECT message.provider_message_id
-          FROM public.manebrain_messages AS message
-          WHERE message.owner_user_id = claimed.owner_user_id
-            AND message.conversation_id = claimed.conversation_id
-            AND message.direction = 'inbound'
-          ORDER BY message.received_at DESC NULLS LAST, message.created_at DESC, message.id DESC
-          LIMIT 1
-        ) AS latest_inbound ON true
-      `, [ownerId, leaseToken, this.leaseDurationMs, attemptId]);
-      return result.rows[0] || null;
+          SELECT
+            updated.*,
+            $6::text AS channel,
+            $7::text AS provider_account_id,
+            $8::text AS provider_conversation_id,
+            $9::text AS provider_sender_id,
+            $10::text AS target_provider_message_id
+          FROM updated
+          JOIN attempt ON attempt.id = updated.last_attempt_id
+        `, [
+          ownerId,
+          row.id,
+          leaseToken,
+          this.leaseDurationMs,
+          attemptId,
+          row.channel,
+          row.provider_account_id,
+          row.provider_conversation_id,
+          row.provider_sender_id,
+          row.target_provider_message_id,
+        ]);
+        return claimed.rows[0] || null;
+      }
+
+      throw new MetaOutboundRepositoryError('Too many invalid Meta jobs blocked one claim transaction.', {
+        code: 'META_OUTBOUND_POLICY_GUARD_LIMIT',
+      });
     });
   }
 
