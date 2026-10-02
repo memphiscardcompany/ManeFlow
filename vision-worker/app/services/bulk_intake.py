@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from app.core.config import settings
+from app.core.security import resolve_import_folder
 from app.services.bulk_intake_repository import bulk_intake_repository
 from app.services.identity_engine import identity_engine
 from app.services.imaging.barcode import decode_barcodes
@@ -124,7 +125,7 @@ def pair_scan_files(files: list[Path], strategy: str) -> tuple[list[tuple[Path, 
 
 class BulkIntakeService:
     def import_ricoh_folder(self, request: dict[str, Any]) -> dict[str, Any]:
-        folder = Path(request["folder_path"]).expanduser().resolve()
+        folder = resolve_import_folder(request["folder_path"])
         if not folder.exists() or not folder.is_dir():
             raise ValueError("The selected Ricoh scan folder does not exist or is not a directory.")
 
