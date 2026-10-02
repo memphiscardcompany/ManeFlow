@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-client = TestClient(app)
+AUTH_HEADERS = {"Authorization": "Bearer test-maneflow-service-token"}
+client = TestClient(app, headers=AUTH_HEADERS)
 
 
 def _single_card_jpeg() -> bytes:
