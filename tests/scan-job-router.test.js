@@ -100,20 +100,26 @@ test('durable scan job API requires CSRF and explicit image authorization', asyn
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name: 'Alice', email: 'scan-alice@example.com', password: 'alice-password-123' }),
   });
-  assert.equal(registered.response.status, 201);
-  const me = await request('/api/auth/me', { headers: { cookie: registered.cookie } });
+  assert.equal(registered.response.status, 202);
+  const login = await request('/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'scan-alice@example.com', password: 'alice-password-123' }),
+  });
+  assert.equal(login.response.status, 200);
+  const me = await request('/api/auth/me', { headers: { cookie: login.cookie } });
   assert.ok(me.body.csrfToken);
 
   const missingCsrf = await request('/api/scan-jobs', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', cookie: registered.cookie },
+    headers: { 'content-type': 'application/json', cookie: login.cookie },
     body: JSON.stringify({ idempotencyKey: 'missing-csrf', expectedItems: 1, processingAuthorization: true }),
   });
   assert.equal(missingCsrf.response.status, 403);
 
   const missingAuthorization = await request('/api/scan-jobs', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', cookie: registered.cookie, 'x-maneflow-csrf': me.body.csrfToken },
+    headers: { 'content-type': 'application/json', cookie: login.cookie, 'x-maneflow-csrf': me.body.csrfToken },
     body: JSON.stringify({ idempotencyKey: 'missing-authorization', expectedItems: 1 }),
   });
   assert.equal(missingAuthorization.response.status, 400);
@@ -126,10 +132,16 @@ test('users cannot inspect another account scan job and completed results remain
     body: JSON.stringify({ email: 'scan-alice@example.com', password: 'alice-password-123' }),
   });
   const aliceMe = await request('/api/auth/me', { headers: { cookie: aliceLogin.cookie } });
-  const bob = await request('/api/auth/register', {
+  const bobRegistered = await request('/api/auth/register', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name: 'Bob', email: 'scan-bob@example.com', password: 'bob-password-123' }),
   });
+  assert.equal(bobRegistered.response.status, 202);
+  const bob = await request('/api/auth/login', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'scan-bob@example.com', password: 'bob-password-123' }),
+  });
+  assert.equal(bob.response.status, 200);
   const bobMe = await request('/api/auth/me', { headers: { cookie: bob.cookie } });
 
   const created = await request('/api/scan-jobs', {
