@@ -51,11 +51,11 @@ services:
       CARD_DETECTOR_MODEL_PATH: ${CARD_DETECTOR_MODEL_PATH:-}
       MANEFLOW_CORE_URL: http://maneflow:4321
       MANEFLOW_SERVICE_TOKEN: ${MANEFLOW_SERVICE_TOKEN:?Set MANEFLOW_SERVICE_TOKEN}
+      MANEFLOW_IMPORT_ALLOWED_ROOT: /data/imports
+      CORS_ORIGINS_RAW: http://maneflow:4321,http://localhost:4321,http://127.0.0.1:4321
     volumes:
       - maneflow_vision_data:/data
       - ${MANEFLOW_MODEL_DIR:-./models}:/models:ro
-    ports:
-      - "8741:8741"
     restart: unless-stopped
 
   maneflow:
