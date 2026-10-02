@@ -184,6 +184,7 @@ export function createMetaOwnerRouter({ config, store, databaseRuntime, fetchImp
         const job = await repository.approveDraft(owner.userId, {
           draftId: draftApprove[1],
           approvedText: body.approvedText,
+          targetProviderMessageId: body.targetProviderMessageId,
           approvedBy: owner.userId,
           maxAttempts: body.maxAttempts,
         });
