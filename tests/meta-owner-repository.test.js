@@ -6,6 +6,7 @@ const ownerId = '11111111-1111-4111-8111-111111111111';
 const conversationId = '22222222-2222-4222-8222-222222222222';
 const draftId = '33333333-3333-4333-8333-333333333333';
 const jobId = '44444444-4444-4444-8444-444444444444';
+const targetProviderMessageId = 'mid.target.1';
 
 function fakePool(handler) {
   const calls = [];
@@ -59,6 +60,9 @@ test('approval is separate from queueing and records the exact text hash', async
       return { rows: [{ id: draftId, conversation_id: conversationId, status: 'DRAFT' }], rowCount: 1 };
     }
     if (sql.includes('FROM public.manebrain_outbound_jobs') && sql.includes('draft_id')) return { rows: [], rowCount: 0 };
+    if (sql.includes('FROM public.manebrain_messages') && sql.includes("direction = 'inbound'")) {
+      return { rows: [{ provider_message_id: targetProviderMessageId }], rowCount: 1 };
+    }
     if (sql.includes('INSERT INTO public.manebrain_outbound_jobs')) {
       return { rows: [{ id: jobId, conversation_id: conversationId, draft_id: draftId, status: 'HELD_POLICY_REVIEW' }], rowCount: 1 };
     }
@@ -69,13 +73,18 @@ test('approval is separate from queueing and records the exact text hash', async
   const job = await repository.approveDraft(ownerId, {
     draftId,
     approvedText,
+    targetProviderMessageId,
     approvedBy: ownerId,
   });
   assert.equal(job.status, 'HELD_POLICY_REVIEW');
   const insert = calls.find(({ sql }) => sql.includes('INSERT INTO public.manebrain_outbound_jobs'));
   assert.equal(insert.values[3], approvedText);
   assert.match(insert.values[4], /^[a-f0-9]{64}$/);
-  assert.ok(calls.some(({ sql }) => sql.includes("SET status = 'APPROVED_BY_HUMAN'")));
+  const targetCheck = calls.find(({ sql }) => sql.includes('FROM public.manebrain_messages') && sql.includes("direction = 'inbound'"));
+  assert.deepEqual(targetCheck.values, [ownerId, conversationId, targetProviderMessageId]);
+  const draftUpdate = calls.find(({ sql }) => sql.includes("SET status = 'APPROVED_BY_HUMAN'"));
+  assert.equal(draftUpdate.values[2], targetProviderMessageId);
+  assert.match(draftUpdate.sql, /target_provider_message_id = \$3/);
   assert.equal(calls.some(({ sql }) => sql.includes("SET status = 'SEND_QUEUED'")), false);
 });
 
