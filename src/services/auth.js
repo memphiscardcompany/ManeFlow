@@ -51,8 +51,8 @@ export async function hashPassword(password, salt = crypto.randomBytes(16).toStr
   return { salt, hash: Buffer.from(derived).toString('hex'), params: normalized };
 }
 
-export async function verifyPassword(password, salt, expectedHash, params = null) {
-  const normalized = normalizedScryptParams(params, LEGACY_SCRYPT_PARAMS);
+export async function verifyPassword(password, salt, expectedHash, params = PASSWORD_SCRYPT_PARAMS) {
+  const normalized = normalizedScryptParams(params, PASSWORD_SCRYPT_PARAMS);
   const { hash } = await hashPassword(password, salt, normalized);
   return timingSafeEqualString(hash, expectedHash);
 }
@@ -62,7 +62,12 @@ export async function verifyLoginPassword(user, password) {
     await verifyPassword(password, DUMMY_LOGIN_SALT, DUMMY_LOGIN_HASH, PASSWORD_SCRYPT_PARAMS);
     return false;
   }
-  return verifyPassword(password, user.passwordSalt, user.passwordHash, user.passwordParams);
+  return verifyPassword(
+    password,
+    user.passwordSalt,
+    user.passwordHash,
+    user.passwordParams || LEGACY_SCRYPT_PARAMS,
+  );
 }
 
 export function passwordHashNeedsUpgrade(user) {
