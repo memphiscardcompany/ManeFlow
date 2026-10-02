@@ -19,6 +19,10 @@ function checksum(content) {
   return crypto.createHash('sha256').update(content).digest('hex');
 }
 
+const LEGACY_MIGRATION_ALIASES = new Map([
+  ['010_async_recognition_dag.sql', ['005_async_recognition_dag.sql']],
+]);
+
 async function migrations() {
   const names = (await fs.readdir(migrationsDir))
     .filter((name) => /^\d+_.+\.sql$/.test(name))
@@ -62,6 +66,28 @@ try {
       console.log(`skip ${migration.name}`);
       continue;
     }
+
+    const aliases = LEGACY_MIGRATION_ALIASES.get(migration.name) || [];
+    let migratedFromLegacyName = false;
+    for (const legacyName of aliases) {
+      const legacy = await client.query(
+        'SELECT checksum_sha256 FROM public.maneflow_schema_migrations WHERE name = $1',
+        [legacyName],
+      );
+      if (!legacy.rowCount) continue;
+      if (legacy.rows[0].checksum_sha256 !== migration.checksum) {
+        throw new Error(`Legacy migration checksum mismatch: ${legacyName} -> ${migration.name}`);
+      }
+      await client.query(
+        `INSERT INTO public.maneflow_schema_migrations (name, checksum_sha256) VALUES ($1, $2)
+         ON CONFLICT (name) DO NOTHING`,
+        [migration.name, migration.checksum],
+      );
+      console.log(`alias ${legacyName} -> ${migration.name}`);
+      migratedFromLegacyName = true;
+      break;
+    }
+    if (migratedFromLegacyName) continue;
 
     console.log(`apply ${migration.name}`);
     try {
