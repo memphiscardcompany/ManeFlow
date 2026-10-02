@@ -127,7 +127,7 @@ test('HTTP rate limits are definite pre-acceptance rejections and may retry', as
   });
   await assert.rejects(client.send(baseJob()), (error) => {
     assert.ok(error instanceof MetaGraphDispatchError);
-    assert.equal(error.code, 'META_GRAPH_REJECTED');
+    assert.equal(error.code, 'META_GRAPH_RATE_LIMITED');
     assert.equal(error.certainty, 'rejected_before_acceptance');
     assert.equal(error.retryable, true);
     assert.deepEqual(error.responseMetadata, {
@@ -142,6 +142,45 @@ test('HTTP rate limits are definite pre-acceptance rejections and may retry', as
     assert.doesNotMatch(JSON.stringify(error.responseMetadata), /secret-token/);
     return true;
   });
+});
+
+test('documented Meta throttle error codes retry even when HTTP status is 400', async () => {
+  for (const providerCode of [4, 17, 32, 613]) {
+    const client = new MetaGraphClient(config(), {
+      fetchImpl: async () => response(400, { error: { code: providerCode, type: 'OAuthException' } }),
+    });
+    await assert.rejects(client.send(baseJob()), (error) => {
+      assert.equal(error.code, 'META_GRAPH_RATE_LIMITED');
+      assert.equal(error.certainty, 'rejected_before_acceptance');
+      assert.equal(error.retryable, true);
+      assert.equal(error.responseMetadata.providerCode, providerCode);
+      return true;
+    });
+  }
+});
+
+test('ambiguous provider responses are terminal outcome_unknown and never retry', async () => {
+  const cases = [
+    { status: 408, payload: { error: { code: 1 } } },
+    { status: 409, payload: { error: { code: 1 } } },
+    { status: 425, payload: { error: { code: 1 } } },
+    { status: 500, payload: { error: { code: 1 } } },
+    { status: 503, payload: { error: { code: 2, is_transient: true } } },
+    { status: 400, payload: { error: { code: 2, is_transient: true } } },
+  ];
+
+  for (const item of cases) {
+    const client = new MetaGraphClient(config(), {
+      fetchImpl: async () => response(item.status, item.payload),
+    });
+    await assert.rejects(client.send(baseJob()), (error) => {
+      assert.equal(error.code, 'META_GRAPH_OUTCOME_UNKNOWN');
+      assert.equal(error.certainty, 'outcome_unknown');
+      assert.equal(error.retryable, false);
+      assert.equal(error.responseMetadata.httpStatus, item.status);
+      return true;
+    });
+  }
 });
 
 test('permanent HTTP rejection is not retried automatically', async () => {
