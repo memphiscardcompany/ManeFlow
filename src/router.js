@@ -53,9 +53,10 @@ import { recordUsage, summarizeUsage, usageGate } from './services/usage-meterin
 import { PLAN_DEFINITIONS, entitlementsFor, withinLimit } from './services/plans.js';
 import {
   clearSessionCookie, createSessionToken, hashPassword, hashSessionToken,
-  csrfTokenForSession, normalizeEmail, requestCredential, sanitizeUser,
-  sessionCookie, validateEmail, validatePassword, verifyPassword,
+  csrfTokenForSession, normalizeEmail, passwordHashNeedsUpgrade, requestCredential, sanitizeUser,
+  sessionCookie, validateEmail, validatePassword, verifyLoginPassword, verifyPassword,
 } from './services/auth.js';
+import { buildTotpEnrollmentUri, generateTotpSecret, verifyTotpCode } from './services/mfa.js';
 import {
   badRequest, forbidden, json, notFound, parseWindow, readBody, readJson,
   text, timingSafeEqualString, toCsv, unauthorized, verifyHmac,
@@ -430,31 +431,26 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         if (!validateEmail(email)) return badRequest(res, 'Enter a valid email address.');
         const passwordError = validatePassword(body.password);
         if (passwordError) return badRequest(res, passwordError);
-        const { salt, hash } = await hashPassword(body.password);
-        const user = await store.createUser({ email, name: body.name, passwordHash: hash, passwordSalt: salt, role: 'collector' });
-        const verification = await issueAccountToken(user, 'verify_email');
-        await store.audit({ type: 'account_created', userId: user.id, ip: requestIp(req) });
-        if (config.requireEmailVerification) {
-          return json(res, 201, {
-            user: sanitizeUser(user),
-            verification,
-            authenticated: false,
-            message: 'Account created. Verify your email before signing in.',
+        const { salt, hash, params } = await hashPassword(body.password);
+        const existing = store.findUserByEmail(email);
+        if (!existing) {
+          const user = await store.createUser({
+            email,
+            name: body.name,
+            passwordHash: hash,
+            passwordSalt: salt,
+            passwordParams: params,
+            role: 'collector',
           });
+          await issueAccountToken(user, 'verify_email');
+          await store.audit({ type: 'account_created', userId: user.id, ip: requestIp(req) });
+        } else {
+          await store.audit({ type: 'account_registration_requested_existing', userId: null, ip: requestIp(req) });
         }
-        const token = createSessionToken();
-        await store.createSession({
-          tokenHash: hashSessionToken(token), userId: user.id,
-          expiresAt: new Date(Date.now() + config.sessionDays * 86_400_000).toISOString(),
-          userAgent: req.headers['user-agent'], ip: requestIp(req),
+        return json(res, 202, {
+          queued: true,
+          message: 'If this address can be registered, account instructions have been queued.',
         });
-        return json(res, 201, {
-          user: sanitizeUser(user),
-          verification,
-          authenticated: true,
-          csrfToken: csrfTokenForSession(token),
-          ...(body.native === true ? { sessionToken: token } : {}),
-        }, { 'set-cookie': sessionCookie(token, config) });
       } catch (error) {
         return badRequest(res, error.message);
       }
@@ -468,10 +464,18 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         const accountLimit = authAccountLimiter.check(`login:${normalizeEmail(body.email) || 'missing'}`);
         if (!accountLimit.allowed) return json(res, 429, { error: 'rate_limited', message: 'Too many login attempts. Try again later.' });
         const user = store.findUserByEmail(body.email);
-        const valid = user && await verifyPassword(body.password, user.passwordSalt, user.passwordHash);
+        const valid = await verifyLoginPassword(user, body.password);
         if (!valid) return json(res, 401, { error: 'invalid_credentials', message: 'Email or password is incorrect.' });
         if (user.disabledAt) return json(res, 403, { error: 'account_disabled', message: 'This account is disabled. Contact support.' });
         if (config.requireEmailVerification && !user.emailVerifiedAt) return json(res, 403, { error: 'email_not_verified', message: 'Verify your email before signing in.' });
+        if (passwordHashNeedsUpgrade(user)) {
+          const upgraded = await hashPassword(body.password);
+          await store.updatePassword(user.id, {
+            passwordHash: upgraded.hash,
+            passwordSalt: upgraded.salt,
+            passwordParams: upgraded.params,
+          });
+        }
         const token = createSessionToken();
         await store.createSession({
           tokenHash: hashSessionToken(token), userId: user.id,
@@ -545,8 +549,8 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         if (passwordError) return badRequest(res, passwordError);
         const consumed = await store.consumeAccountToken('reset_password', hashSessionToken(body.token));
         if (!consumed) return badRequest(res, 'Reset token is invalid or expired.');
-        const { salt, hash } = await hashPassword(body.password);
-        await store.updatePassword(consumed.userId, { passwordHash: hash, passwordSalt: salt });
+        const { salt, hash, params } = await hashPassword(body.password);
+        await store.updatePassword(consumed.userId, { passwordHash: hash, passwordSalt: salt, passwordParams: params });
         await store.audit({ type: 'password_reset_completed', userId: consumed.userId, ip: requestIp(req) });
         return json(res, 200, { reset: true, message: 'Password updated. Sign in with the new password.' }, { 'set-cookie': clearSessionCookie(config) });
       } catch (error) { return badRequest(res, error.message); }
@@ -557,14 +561,105 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
       if (!actor?.user) return unauthorized(res);
       try {
         const body = await readJson(req, 100_000);
-        const valid = await verifyPassword(body.currentPassword, actor.user.passwordSalt, actor.user.passwordHash);
+        const valid = await verifyPassword(body.currentPassword, actor.user.passwordSalt, actor.user.passwordHash, actor.user.passwordParams);
         if (!valid) return json(res, 401, { error: 'invalid_credentials', message: 'Current password is incorrect.' });
         const passwordError = validatePassword(body.newPassword);
         if (passwordError) return badRequest(res, passwordError);
-        const { salt, hash } = await hashPassword(body.newPassword);
-        await store.updatePassword(actor.userId, { passwordHash: hash, passwordSalt: salt });
+        const { salt, hash, params } = await hashPassword(body.newPassword);
+        await store.updatePassword(actor.userId, { passwordHash: hash, passwordSalt: salt, passwordParams: params });
         await store.audit({ type: 'password_changed', userId: actor.userId, ip: requestIp(req) });
         return json(res, 200, { changed: true }, { 'set-cookie': clearSessionCookie(config) });
+      } catch (error) { return badRequest(res, error.message); }
+    }
+
+    if (url.pathname === '/api/auth/mfa/totp/enroll' && method === 'POST') {
+      const actor = actorFromRequest(req);
+      if (!actor?.user || !actor.tokenHash) return unauthorized(res);
+      try {
+        const body = await readJson(req, 100_000);
+        const valid = await verifyPassword(
+          body.password,
+          actor.user.passwordSalt,
+          actor.user.passwordHash,
+          actor.user.passwordParams,
+        );
+        if (!valid) return json(res, 401, { error: 'invalid_credentials', message: 'Current password is incorrect.' });
+        const secret = generateTotpSecret();
+        await store.beginTotpEnrollment(actor.userId, secret);
+        const now = new Date().toISOString();
+        await store.markSessionStepUp(actor.tokenHash, { reauthenticatedAt: now });
+        await store.audit({ type: 'mfa_totp_enrollment_started', userId: actor.userId, ip: requestIp(req) });
+        return json(res, 200, {
+          method: 'totp',
+          secret,
+          otpauthUrl: buildTotpEnrollmentUri({
+            secret,
+            accountName: actor.user.email,
+            issuer: config.appName || 'ManeFlow',
+          }),
+        });
+      } catch (error) { return badRequest(res, error.message); }
+    }
+
+    if (url.pathname === '/api/auth/mfa/totp/confirm' && method === 'POST') {
+      const actor = actorFromRequest(req);
+      if (!actor?.user || !actor.tokenHash) return unauthorized(res);
+      try {
+        const body = await readJson(req, 100_000);
+        const pendingSecret = actor.user.mfaTotpPendingSecret;
+        if (!pendingSecret) return json(res, 409, { error: 'mfa_enrollment_not_started', message: 'Start TOTP enrollment first.' });
+        if (!verifyTotpCode(pendingSecret, body.code)) {
+          return json(res, 401, { error: 'invalid_mfa_code', message: 'The authentication code is invalid.' });
+        }
+        await store.completeTotpEnrollment(actor.userId);
+        const now = new Date().toISOString();
+        await store.markSessionStepUp(actor.tokenHash, { mfaVerifiedAt: now, reauthenticatedAt: now });
+        await store.audit({ type: 'mfa_totp_enabled', userId: actor.userId, ip: requestIp(req) });
+        return json(res, 200, { enabled: true, method: 'totp' });
+      } catch (error) { return badRequest(res, error.message); }
+    }
+
+    if (url.pathname === '/api/auth/mfa/verify' && method === 'POST') {
+      const actor = actorFromRequest(req);
+      if (!actor?.user || !actor.tokenHash) return unauthorized(res);
+      try {
+        const body = await readJson(req, 100_000);
+        if (!actor.user.mfaTotpSecret || !actor.user.mfaEnabledAt) {
+          return json(res, 409, { error: 'mfa_not_enrolled', message: 'MFA enrollment is required.' });
+        }
+        if (!verifyTotpCode(actor.user.mfaTotpSecret, body.code)) {
+          return json(res, 401, { error: 'invalid_mfa_code', message: 'The authentication code is invalid.' });
+        }
+        const now = new Date().toISOString();
+        await store.markSessionStepUp(actor.tokenHash, { mfaVerifiedAt: now });
+        await store.audit({ type: 'mfa_verified', userId: actor.userId, ip: requestIp(req) });
+        return json(res, 200, { verified: true, mfaVerifiedAt: now });
+      } catch (error) { return badRequest(res, error.message); }
+    }
+
+    if (url.pathname === '/api/auth/reauth' && method === 'POST') {
+      const actor = actorFromRequest(req);
+      if (!actor?.user || !actor.tokenHash) return unauthorized(res);
+      try {
+        const body = await readJson(req, 100_000);
+        const valid = await verifyPassword(
+          body.password,
+          actor.user.passwordSalt,
+          actor.user.passwordHash,
+          actor.user.passwordParams,
+        );
+        if (!valid) return json(res, 401, { error: 'invalid_credentials', message: 'Current password is incorrect.' });
+        let mfaVerifiedAt = actor.session?.mfaVerifiedAt || null;
+        if (actor.user.mfaTotpSecret && actor.user.mfaEnabledAt) {
+          if (!verifyTotpCode(actor.user.mfaTotpSecret, body.code)) {
+            return json(res, 401, { error: 'invalid_mfa_code', message: 'A valid MFA code is required.' });
+          }
+          mfaVerifiedAt = new Date().toISOString();
+        }
+        const reauthenticatedAt = new Date().toISOString();
+        await store.markSessionStepUp(actor.tokenHash, { mfaVerifiedAt, reauthenticatedAt });
+        await store.audit({ type: 'session_reauthenticated', userId: actor.userId, ip: requestIp(req) });
+        return json(res, 200, { reauthenticated: true, reauthenticatedAt, mfaVerifiedAt });
       } catch (error) { return badRequest(res, error.message); }
     }
 
@@ -2272,7 +2367,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
       if (!actor) return;
       const ebay = providers.byName.get('eBay');
       if (!ebay) return notFound(res, 'eBay provider is not registered');
-      const secret = config.ebayOauthStateSecret || config.providerWebhookSecret || config.adminToken;
+      const secret = config.ebayOauthStateSecret;
       try {
         const issued = issueEbayOAuthState({
           storeState: store.state,
@@ -2294,7 +2389,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
       if (!actor) return;
       const ebay = providers.byName.get('eBay');
       if (!ebay) return notFound(res, 'eBay provider is not registered');
-      const secret = config.ebayOauthStateSecret || config.providerWebhookSecret || config.adminToken;
+      const secret = config.ebayOauthStateSecret;
       try {
         const body = await readJson(req, 200_000);
         consumeEbayOAuthState({
