@@ -11,6 +11,8 @@ from pathlib import Path
 _TEST_DATA_DIR = Path(tempfile.mkdtemp(prefix="maneflow-worker-tests-"))
 os.environ["MANEFLOW_DATA_DIR"] = str(_TEST_DATA_DIR)
 os.environ["DEV_DATABASE_PATH"] = str(_TEST_DATA_DIR / "maneflow-tests.sqlite3")
+os.environ["MANEFLOW_SERVICE_TOKEN"] = "test-maneflow-service-token"
+os.environ["MANEFLOW_IMPORT_ALLOWED_ROOT"] = str(Path(tempfile.gettempdir()).resolve())
 os.environ.pop("OPENAI_API_KEY", None)
 os.environ.pop("PSA_API_KEY", None)
 os.environ.pop("EBAY_CLIENT_ID", None)
