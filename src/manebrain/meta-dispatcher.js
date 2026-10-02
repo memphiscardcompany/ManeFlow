@@ -1,6 +1,31 @@
 import { MetaGraphClient, MetaGraphDispatchError, metaGraphReadiness } from './meta-graph-client.js';
 import { metaOperationMode } from './owner-authority.js';
 
+export function metaDispatchLeasePolicy(config = {}) {
+  const requestTimeoutMs = Math.max(1_000, Number(config.metaRequestTimeoutMs || 15_000));
+  const safetyMarginMs = Math.max(1_000, Number(config.metaOutboundLeaseMarginMs || 5_000));
+  const leaseDurationMs = Math.max(1_000, Number(config.metaOutboundLeaseMs || 30_000));
+  return {
+    requestTimeoutMs,
+    safetyMarginMs,
+    leaseDurationMs,
+    minimumExclusiveMs: requestTimeoutMs + safetyMarginMs,
+    valid: leaseDurationMs > requestTimeoutMs + safetyMarginMs,
+  };
+}
+
+export function assertMetaDispatchLease(config = {}) {
+  const policy = metaDispatchLeasePolicy(config);
+  if (!policy.valid) {
+    const error = new Error(
+      `Meta outbound lease (${policy.leaseDurationMs}ms) must exceed request timeout + safety margin (${policy.minimumExclusiveMs}ms).`,
+    );
+    error.code = 'META_OUTBOUND_LEASE_TOO_SHORT';
+    throw error;
+  }
+  return policy;
+}
+
 function sanitizeJob(job) {
   if (!job) return null;
   return {
@@ -22,7 +47,9 @@ export function metaDispatcherReadiness(config = {}, repository = null) {
   }
   const mode = metaOperationMode(config);
   if (mode !== 'OWNER_APPROVAL_REQUIRED') missing.push(`META_OPERATION_MODE_${mode}`);
-  return { ready: missing.length === 0, missing, mode };
+  const leasePolicy = metaDispatchLeasePolicy(config);
+  if (!leasePolicy.valid) missing.push('META_OUTBOUND_LEASE_TOO_SHORT');
+  return { ready: missing.length === 0, missing, mode, leasePolicy };
 }
 
 export async function reconcileMetaDispatchLeases({ repository, ownerUserId, limit = 100 }) {
@@ -43,7 +70,11 @@ export async function dispatchNextMetaJob({
   }
 
   const client = graphClient || new MetaGraphClient(config, { fetchImpl });
-  const job = await repository.claimNext(ownerUserId, { dispatchAllowed: true });
+  const job = await repository.claimNext(ownerUserId, {
+    dispatchAllowed: true,
+    activeOwnerUserIds: config.platformOwnerUserIds,
+    approvalMaxAgeMs: config.metaApprovalMaxAgeMs || 900_000,
+  });
   if (!job) return { state: 'IDLE', mode: readiness.mode };
 
   try {
