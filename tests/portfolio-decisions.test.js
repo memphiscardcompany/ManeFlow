@@ -101,6 +101,31 @@ test('portfolio decision support tracks movement, confidence, liquidity, and act
   assert.ok(support.actionBuckets.wait.some((item) => item.cardId === 'thin_card'));
 });
 
+test('portfolio decision support is independent of wall clock when now is supplied', () => {
+  const expected = buildPortfolioIntelligence(collection, options);
+  const RealDate = globalThis.Date;
+  const frozenWallClock = new RealDate('2042-01-01T00:00:00Z');
+
+  class FrozenDate extends RealDate {
+    constructor(...args) {
+      super(...(args.length ? args : [frozenWallClock.toISOString()]));
+    }
+
+    static now() {
+      return frozenWallClock.getTime();
+    }
+  }
+
+  try {
+    globalThis.Date = FrozenDate;
+    const actual = buildPortfolioIntelligence(collection, options);
+    assert.deepEqual(actual.decisionSupport, expected.decisionSupport);
+    assert.deepEqual(actual.inventoryHealth.decisionSupport, expected.inventoryHealth.decisionSupport);
+  } finally {
+    globalThis.Date = RealDate;
+  }
+});
+
 test('active BIN prices stay secondary and never drive true market value', () => {
   const intelligence = buildPortfolioIntelligence(collection, options);
   const rising = intelligence.decisionSupport.cards.find((item) => item.cardId === 'rising_card');
