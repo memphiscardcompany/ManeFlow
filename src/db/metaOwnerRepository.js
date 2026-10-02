@@ -153,6 +153,7 @@ export class MetaOwnerRepository {
   async approveDraft(ownerUserId, {
     draftId,
     approvedText,
+    targetProviderMessageId,
     approvedBy = ownerUserId,
     approvedAt = new Date().toISOString(),
     maxAttempts = 3,
@@ -166,6 +167,7 @@ export class MetaOwnerRepository {
       });
     }
     const normalizedText = text(approvedText, 'approvedText');
+    const normalizedTargetProviderMessageId = text(targetProviderMessageId, 'targetProviderMessageId', 500);
     const hash = approvedHash(normalizedText);
     const attempts = Math.max(1, Math.min(20, Number(maxAttempts || 3)));
     return this.withOwnerTransaction(ownerUserId, async (client, ownerId) => {
@@ -195,11 +197,27 @@ export class MetaOwnerRepository {
       if (draft.status !== 'DRAFT') {
         throw new MetaOwnerRepositoryError('Only an active draft can be approved.', { code: 'META_DRAFT_STATE_CONFLICT' });
       }
+      const target = await client.query(`
+        SELECT provider_message_id
+        FROM public.manebrain_messages
+        WHERE owner_user_id = $1
+          AND conversation_id = $2
+          AND direction = 'inbound'
+          AND provider_message_id = $3
+        FOR SHARE
+      `, [ownerId, draft.conversation_id, normalizedTargetProviderMessageId]);
+      if (!target.rowCount) {
+        throw new MetaOwnerRepositoryError('The approved reply target is not an inbound message in this conversation.', {
+          code: 'META_APPROVAL_TARGET_INVALID',
+          status: 409,
+        });
+      }
       await client.query(`
         UPDATE public.manebrain_reply_drafts
-        SET status = 'APPROVED_BY_HUMAN'
+        SET status = 'APPROVED_BY_HUMAN',
+            target_provider_message_id = $3
         WHERE owner_user_id = $1 AND id = $2
-      `, [ownerId, normalizedDraftId]);
+      `, [ownerId, normalizedDraftId, normalizedTargetProviderMessageId]);
       const inserted = await client.query(`
         INSERT INTO public.manebrain_outbound_jobs (
           owner_user_id,
@@ -222,6 +240,7 @@ export class MetaOwnerRepository {
         outboundJobId: job.id,
         conversationId: draft.conversation_id,
         approvedTextSha256: hash,
+        targetProviderMessageId: normalizedTargetProviderMessageId,
       });
       return job;
     });
