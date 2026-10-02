@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createRouter } from '../src/router.js';
+import { createRouter, securityHeaders } from '../src/router.js';
 import { JsonStore } from '../src/services/store.js';
 import { TtlCache } from '../src/services/cache.js';
 import { createProviderRegistry } from '../src/services/provider-registry.js';
@@ -175,8 +175,17 @@ test('legacy admin bearer tokens are disabled and release provenance is public a
 
   const release = await request('/api/release');
   assert.equal(release.response.status, 200);
-  assert.equal(release.body.version, '2.22.0-beta.1');
-  assert.equal(release.body.commitSha, 'abc123');
-  assert.equal(release.body.releases.vision, 'vision-test');
+  assert.deepEqual(release.body, { version: '2.22.0-beta.1', commitSha: 'abc123' });
   assert.equal(JSON.stringify(release.body).includes('legacy-admin-token'), false);
+});
+
+test('production security headers enforce HSTS and exclude the local vision origin', () => {
+  const headers = securityHeaders({
+    publicBaseUrl: 'https://app.example.test',
+    productionMode: true,
+    releaseChannel: 'production',
+    cardImageAllowedHosts: [],
+  });
+  assert.equal(headers['strict-transport-security'], 'max-age=31536000; includeSubDomains');
+  assert.doesNotMatch(headers['content-security-policy'], /127\.0\.0\.1:8741/);
 });
