@@ -68,6 +68,7 @@ function valuationFor(card, options = {}) {
   if (!card) return null;
   return calculateValuation(salesForCard(card, options.sales || []), {
     card,
+    now: options.now || new Date(),
     demoMode: options.demoMode !== false,
     overrides: options.overrides || {},
     includeCompDetails: false,
