@@ -193,7 +193,7 @@ test('dealer-grade data ops workbench is admin-only and promotes reviewed manual
 }));
 
 test('dealer decision route is server-gated and returns actionable merchant pricing', async () => withServer(async ({ baseUrl, cards }) => {
-  const collector = await request(baseUrl, '/api/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Collector', email: 'dealer-check@example.com', password: 'collector-password-123' }) });
+  const collector = await registerAndLogin(baseUrl, { name: 'Collector', email: 'dealer-check@example.com', password: 'collector-password-123' });
   const denied = await request(baseUrl, `/api/cards/${cards[0].id}/dealer-decision`, { headers: { cookie: collector.cookie } });
   assert.equal(denied.response.status, 403);
 
