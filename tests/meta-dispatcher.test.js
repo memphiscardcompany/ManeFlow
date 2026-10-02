@@ -13,6 +13,9 @@ const job = {
   attempts: 1,
   max_attempts: 3,
   channel: 'messenger',
+  approved_text: 'Approved owner reply.',
+  provider_sender_id: 'customer-1',
+  provider_account_id: 'page-1',
 };
 
 function config(overrides = {}) {
@@ -102,7 +105,7 @@ test('transient pre-acceptance rejection enters retry wait', async () => {
     graphClient: {
       async send() {
         throw new MetaGraphDispatchError('rate limited', {
-          code: 'META_GRAPH_REJECTED',
+          code: 'META_GRAPH_RATE_LIMITED',
           certainty: 'rejected_before_acceptance',
           retryable: true,
           responseMetadata: { httpStatus: 429 },
@@ -155,6 +158,30 @@ test('ambiguous delivery is terminal and never blindly retried', async () => {
   assert.equal(result.state, 'DELIVERY_UNKNOWN');
   assert.equal(repo.calls.some(([name]) => name === 'completeRejectedBeforeAcceptance'), false);
   assert.equal(repo.calls.some(([name]) => name === 'completeOutcomeUnknown'), true);
+});
+
+test('ambiguous Meta HTTP response routes to terminal reconciliation instead of retry', async () => {
+  const repo = repository();
+  const result = await dispatchNextMetaJob({
+    repository: repo,
+    config: config(),
+    ownerUserId,
+    fetchImpl: async () => ({
+      ok: false,
+      status: 503,
+      async text() {
+        return JSON.stringify({ error: { code: 2, is_transient: true, fbtrace_id: 'trace-ambiguous' } });
+      },
+    }),
+  });
+
+  assert.equal(result.state, 'DELIVERY_UNKNOWN');
+  assert.equal(result.error, 'META_GRAPH_OUTCOME_UNKNOWN');
+  assert.equal(repo.calls.some(([name]) => name === 'completeRejectedBeforeAcceptance'), false);
+  const completion = repo.calls.find(([name]) => name === 'completeOutcomeUnknown');
+  assert.ok(completion);
+  assert.equal(completion[2].jobId, job.id);
+  assert.equal(completion[2].responseMetadata.httpStatus, 503);
 });
 
 test('batch reconciles stale leases before claiming new work and stops on idle', async () => {
