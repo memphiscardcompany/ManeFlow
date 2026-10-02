@@ -3,8 +3,11 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+AUTH_HEADERS = {"Authorization": "Bearer test-maneflow-service-token"}
+
+
 def test_readiness_does_not_expose_secrets_and_reports_safe_fallbacks():
-    payload = TestClient(app).get("/readiness").json()
+    payload = TestClient(app, headers=AUTH_HEADERS).get("/readiness").json()
     assert payload["detection"]["classical_fallback_available"] is True
     assert "roboflow" in payload["detection"]
     assert payload["storage"]["local_sqlite_available"] is True
