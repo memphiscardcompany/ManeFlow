@@ -35,7 +35,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 15_000,
   application_name: 'maneflow-migrations',
   ssl: /(?:sslmode=require|supabase\.co|neon\.tech)/i.test(DATABASE_URL)
-    ? { rejectUnauthorized: false }
+    ? { rejectUnauthorized: true }
     : undefined,
 });
 
