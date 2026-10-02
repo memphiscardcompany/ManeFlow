@@ -19,12 +19,10 @@ jobs:
     outputs:
       ios_build_id: ${{ steps.capture_build_evidence.outputs.ios_build_id }}
       android_build_id: ${{ steps.capture_build_evidence.outputs.android_build_id }}
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -34,6 +32,8 @@ jobs:
         run: npm install --global npm@11.16.0 --no-audit --no-fund
 
       - name: Require Expo access token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: test -n "$EXPO_TOKEN" || (echo "EXPO_TOKEN is not configured" && exit 1)
 
       - name: Install core dependencies
@@ -55,10 +55,14 @@ jobs:
         run: npm install --global eas-cli@16.32.0
 
       - name: Verify Expo account
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas whoami
 
       - name: Build signed iOS and Android production artifacts
         working-directory: apps/mobile-expo
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas build --platform all --profile production --non-interactive --wait --json > "$RUNNER_TEMP/eas-builds.json"
 
       - name: Bind build evidence to this commit
@@ -76,7 +80,7 @@ jobs:
             --workflow-run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Upload commit-bound mobile build evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ManeFlow-Mobile-Build-Evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: reports/mobile-release-evidence.json
@@ -95,13 +99,12 @@ jobs:
       group: maneflow-mobile-store-production
       cancel-in-progress: false
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       IOS_BUILD_ID: ${{ needs.verify_and_build_mobile.outputs.ios_build_id }}
       ANDROID_BUILD_ID: ${{ needs.verify_and_build_mobile.outputs.android_build_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -111,6 +114,8 @@ jobs:
         run: npm install --global npm@11.16.0 --no-audit --no-fund
 
       - name: Require promotion credentials and exact build IDs
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           test -n "$EXPO_TOKEN" || (echo "EXPO_TOKEN is not configured" && exit 1)
           test -n "$IOS_BUILD_ID" || (echo "The iOS build ID is missing" && exit 1)
@@ -128,6 +133,8 @@ jobs:
 
       - name: Submit exact production builds
         working-directory: apps/mobile-expo
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           eas submit --platform ios --profile production --id "$IOS_BUILD_ID" --non-interactive --wait
           eas submit --platform android --profile production --id "$ANDROID_BUILD_ID" --non-interactive --wait
