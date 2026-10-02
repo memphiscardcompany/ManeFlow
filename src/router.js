@@ -130,14 +130,20 @@ function safeStaticPath(urlPath) {
 
 function securityHeaders(config = {}) {
   const imageHosts = [...imageConfig(config).allowedHosts].map((host) => `https://${host}`).join(' ');
-  return {
+  const production = config.productionMode === true || config.releaseChannel === 'production';
+  const localVisionOrigin = production ? '' : ' http://127.0.0.1:8741';
+  const headers = {
     'x-content-type-options': 'nosniff',
     'x-frame-options': 'DENY',
     'referrer-policy': 'strict-origin-when-cross-origin',
     'permissions-policy': 'camera=(self), microphone=(), geolocation=()',
     'cross-origin-opener-policy': 'same-origin',
-    'content-security-policy': `default-src 'self'; img-src 'self' data: blob: http://127.0.0.1:8741 ${imageHosts}; media-src 'self' blob:; connect-src 'self' http://127.0.0.1:8741; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
+    'content-security-policy': `default-src 'self'; img-src 'self' data: blob:${localVisionOrigin} ${imageHosts}; media-src 'self' blob:; connect-src 'self'${localVisionOrigin}; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
   };
+  if (String(config.publicBaseUrl || '').startsWith('https://')) {
+    headers['strict-transport-security'] = 'max-age=31536000; includeSubDomains';
+  }
+  return headers;
 }
 
 function isMutation(method) {
@@ -761,13 +767,10 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
     }
 
     if (url.pathname === '/api/health' && method === 'GET') {
-      const database = databaseRuntime?.health ? await databaseRuntime.health() : { configured: false, ready: false, mode: 'disabled' };
       return json(res, 200, {
-        ok: true, name: config.appName, version: config.version, releaseChannel: config.releaseChannel,
-        time: new Date().toISOString(), marketMode: marketMode(config, store.state.customSales.length),
-        catalogCards: catalog().length, customSales: store.state.customSales.length,
-        database,
-        providers: providers.status().filter((item) => item.mode !== 'partnership_required').map(({ name, mode }) => ({ name, mode })),
+        ok: true,
+        name: config.appName,
+        version: config.version,
       });
     }
 
@@ -775,14 +778,6 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
       return json(res, 200, {
         version: config.version,
         commitSha: config.releaseCommitSha || null,
-        deployedAt: config.releaseDeployedAt || null,
-        environment: config.releaseEnvironment || 'unknown',
-        releases: {
-          web: config.webReleaseId || null,
-          api: config.apiReleaseId || null,
-          vision: config.visionReleaseId || null,
-        },
-        migrationVersion: config.migrationVersion || null,
       });
     }
 
@@ -2947,29 +2942,14 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
     try {
       const url = new URL(req.url || '/', config.publicBaseUrl);
       if (url.pathname === '/healthz') {
-        return json(res, 200, {
-          ok: true,
-          app: config.appName,
-          version: config.version,
-          releaseChannel: config.releaseChannel,
-          generatedAt: new Date().toISOString(),
-        });
+        return json(res, 200, { ok: true });
       }
       if (url.pathname === '/readyz') {
         const validation = runtimeValidation || validateRuntimeConfig(config);
-        let storageHealth = { ok: true, mode: config.storageMode || 'json' };
+        let storageHealth = { ok: true };
         if (storage && typeof storage.health === 'function') storageHealth = await storage.health();
         const ready = validation.ok && storageHealth.ok !== false;
-        return json(res, ready ? 200 : 503, {
-          ready,
-          config: validation,
-          storage: storageHealth,
-          marketData: {
-            demoMode: config.demoMode,
-            customSales: store.state.customSales.length,
-            publicValueClaimsAllowed: !config.demoMode && store.state.customSales.length > 0,
-          },
-        });
+        return json(res, ready ? 200 : 503, { ready });
       }
       if (req.method === 'OPTIONS') {
         const origin = String(req.headers.origin || '');
