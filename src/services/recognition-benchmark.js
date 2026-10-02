@@ -173,10 +173,10 @@ function fieldScore(expected = {}, facts = {}) {
 
 function benchmarkCardType(expected = {}, row = {}) {
   const scene = normalizeText(row.sceneExpected || '');
-  const brand = normalizeText(expected.brand || '');
+  const categoryText = normalizeText([expected.brand, expected.set, expected.player].filter(Boolean).join(' '));
   if (expected.productType || expected.productName || scene.includes('sealed')) return 'sealed_product';
   if (expected.grader || expected.grade || expected.certNumber || scene.includes('slab')) return 'slabbed';
-  if (/(pokemon|magic|gathering|yu gi oh|yugioh|lorcana|tcg)/.test(brand)) return 'tcg';
+  if (/(pokemon|magic|gathering|yu gi oh|yugioh|lorcana|tcg)/.test(categoryText)) return 'tcg';
   return 'raw_card';
 }
 
@@ -230,7 +230,7 @@ function benchmarkQualification(cases = []) {
   const qualifyingSplits = new Set(['evaluation', 'test', 'validation', 'heldout', 'holdout']);
   const labeledCases = cases.filter((item) => safeArray(item.expectedCards).length > 0);
   const heldOutCases = labeledCases.filter((item) => qualifyingSplits.has(String(item.split || '').toLowerCase()) && item.benchmarkEvidence?.heldOut === true);
-  const realVisionCases = heldOutCases.filter((item) => item.benchmarkEvidence?.realImage === true && item.benchmarkEvidence?.liveVision === true);
+  const realVisionCases = heldOutCases.filter((item) => item.scorable && item.benchmarkEvidence?.realImage === true && item.benchmarkEvidence?.liveVision === true);
   const expectedCards = realVisionCases.reduce((sum, item) => sum + safeArray(item.expectedCards).length, 0);
   const multiCardCases = realVisionCases.filter((item) => safeArray(item.expectedCards).length > 1 || ['binder_page', 'multi_card_table', 'mixed_raw_slab'].includes(item.sceneType)).length;
   const blockers = [];
