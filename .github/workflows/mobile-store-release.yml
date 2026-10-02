@@ -129,6 +129,8 @@ jobs:
         run: npm install --global eas-cli@16.32.0
 
       - name: Verify Expo account
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas whoami
 
       - name: Submit exact production builds
