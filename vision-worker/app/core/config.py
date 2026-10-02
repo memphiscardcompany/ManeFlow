@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     maneflow_core_url: str = "http://127.0.0.1:4321"
     maneflow_service_token: str | None = None
     maneflow_core_timeout_seconds: float = 12.0
+    maneflow_import_allowed_root: str | None = None
 
     max_upload_bytes: int = 20_000_000
     max_lot_images: int = 24
@@ -90,7 +91,9 @@ class Settings(BaseSettings):
     default_payment_fee_fixed: float = 0.30
     default_target_roi: float = 0.25
 
-    cors_origins_raw: str = Field(default="*")
+    cors_origins_raw: str = Field(
+        default="http://127.0.0.1:4321,http://localhost:4321"
+    )
 
     @property
     def data_dir(self) -> Path:
@@ -109,7 +112,16 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         values = [item.strip() for item in self.cors_origins_raw.split(",") if item.strip()]
-        return values or ["*"]
+        if "*" in values:
+            raise ValueError("Wildcard CORS origins are not allowed for the vision worker.")
+        return values
+
+    @property
+    def import_allowed_root(self) -> Path:
+        configured = self.maneflow_import_allowed_root
+        path = Path(configured).expanduser() if configured else self.data_dir / "imports"
+        path.mkdir(parents=True, exist_ok=True)
+        return path.resolve()
 
     @property
     def dev_database_file(self) -> Path:
