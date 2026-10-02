@@ -128,7 +128,7 @@ function safeStaticPath(urlPath) {
   return absolute.startsWith(publicDir) ? absolute : null;
 }
 
-function securityHeaders(config = {}) {
+export function securityHeaders(config = {}) {
   const imageHosts = [...imageConfig(config).allowedHosts].map((host) => `https://${host}`).join(' ');
   const production = config.productionMode === true || config.releaseChannel === 'production';
   const localVisionOrigin = production ? '' : ' http://127.0.0.1:8741';
