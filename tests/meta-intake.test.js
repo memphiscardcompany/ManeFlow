@@ -106,7 +106,7 @@ test('Meta intake verifies exact raw bytes before parsing and persists only allo
     now,
   });
   assert.equal(outcome.status, 202);
-  assert.deepEqual(outcome.body, { accepted: 1, duplicates: 0, rejected: 0 });
+  assert.deepEqual(outcome.body, { accepted: 1, duplicates: 0, rejected: 0, deadLettered: 0 });
   assert.equal(calls[0].owner, ownerUserId);
   assert.match(calls[0].input.payloadSha256, /^[a-f0-9]{64}$/);
 
@@ -144,11 +144,55 @@ test('Meta intake reconciles every accepted or duplicate signed provider echo id
     now,
   });
   assert.equal(outcome.status, 202);
-  assert.deepEqual(outcome.body, { accepted: 0, duplicates: 1, rejected: 0 });
+  assert.deepEqual(outcome.body, { accepted: 0, duplicates: 1, rejected: 0, deadLettered: 0 });
   assert.equal(calls.length, 2);
   assert.equal(calls[1][0], 'reconcile');
   assert.equal(calls[1][1], ownerUserId);
   assert.equal(calls[1][2][0].isEcho, true);
+});
+
+test('stale signed Meta events are persisted to dead letter and logged for inspection', async () => {
+  const staleTimestamp = now - 25 * 60 * 60 * 1_000;
+  const rawBody = Buffer.from(JSON.stringify(pageMessage({ timestamp: staleTimestamp })));
+  const calls = [];
+  const warnings = [];
+  const repository = {
+    async ingestBatch() {
+      calls.push(['ingest']);
+      return { accepted: [], duplicates: [] };
+    },
+    async deadLetterEvents(owner, input) {
+      calls.push(['deadLetter', owner, input]);
+      return { deadLettered: ['mid.1'], duplicates: [] };
+    },
+  };
+
+  const outcome = await ingestMetaWebhook({
+    rawBody,
+    signature: signMetaPayload(rawBody, config.metaAppSecret),
+    config,
+    repository,
+    ownerUserId,
+    now,
+    logger: { warn(value) { warnings.push(String(value)); } },
+  });
+
+  assert.equal(outcome.status, 202);
+  assert.deepEqual(outcome.body, {
+    accepted: 0,
+    duplicates: 0,
+    rejected: 1,
+    deadLettered: 1,
+  });
+  assert.equal(calls.some(([name]) => name === 'ingest'), false);
+  const deadLetter = calls.find(([name]) => name === 'deadLetter');
+  assert.equal(deadLetter[1], ownerUserId);
+  assert.equal(deadLetter[2].errorCode, 'META_WEBHOOK_STALE');
+  assert.equal(deadLetter[2].events[0].providerEventId, 'mid.1');
+  assert.match(deadLetter[2].payloadSha256, /^[a-f0-9]{64}$/);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /meta_webhook_stale_dead_lettered/);
+  assert.doesNotMatch(warnings[0], /What is this card worth/);
 });
 
 test('Meta kill switch and asset allowlist fail closed before persistence', async () => {
