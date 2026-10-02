@@ -81,8 +81,26 @@ const mime = {
 };
 const allowedAuthorizationBases = new Set(['official_api', 'ebay_api', 'written_license', 'commercial_partner', 'user_authorized_export', 'user_csv']);
 
-function clientIp(req) {
-  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+function normalizeRemoteAddress(value) {
+  const address = String(value || '').trim();
+  if (!address) return 'unknown';
+  return address.startsWith('::ffff:') ? address.slice(7) : address;
+}
+
+export function clientIp(req, config = {}) {
+  const remoteAddress = normalizeRemoteAddress(req.socket?.remoteAddress);
+  if (config.trustProxy !== true) return remoteAddress;
+
+  const trustedProxyAddresses = new Set(
+    (config.trustedProxyAddresses || []).map(normalizeRemoteAddress),
+  );
+  if (!trustedProxyAddresses.has(remoteAddress)) return remoteAddress;
+
+  const forwarded = String(req.headers?.['x-forwarded-for'] || '')
+    .split(',')
+    .map((value) => normalizeRemoteAddress(value))
+    .filter((value) => value && value !== 'unknown');
+  return forwarded[0] || remoteAddress;
 }
 
 function saleQueryFromCard(card) {
@@ -148,7 +166,9 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
   const generalLimiter = new RateLimiter({ windowMs: 60_000, max: 240 });
   const metaWebhookLimiter = new RateLimiter({ windowMs: 60_000, max: 6_000 });
   const authLimiter = new RateLimiter({ windowMs: 15 * 60_000, max: 30 });
+  const authAccountLimiter = new RateLimiter({ windowMs: 15 * 60_000, max: 10 });
   const scanLimiter = new RateLimiter({ windowMs: 60_000, max: 30 });
+  const requestIp = (req) => clientIp(req, config);
   const visionWorker = new VisionWorkerClient({ baseUrl: config.visionWorkerUrl, timeoutMs: config.visionWorkerTimeoutMs });
 
   function catalog() {
@@ -402,7 +422,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
 
     if (url.pathname === '/api/auth/register' && method === 'POST') {
       if (!config.allowPublicSignups) return forbidden(res, 'Public account creation is disabled.');
-      const limit = authLimiter.check(`register:${clientIp(req)}`);
+      const limit = authLimiter.check(`register:${requestIp(req)}`);
       if (!limit.allowed) return json(res, 429, { error: 'rate_limited', message: 'Too many account attempts. Try again later.' });
       try {
         const body = await readJson(req, 100_000);
@@ -413,7 +433,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         const { salt, hash } = await hashPassword(body.password);
         const user = await store.createUser({ email, name: body.name, passwordHash: hash, passwordSalt: salt, role: 'collector' });
         const verification = await issueAccountToken(user, 'verify_email');
-        await store.audit({ type: 'account_created', userId: user.id, ip: clientIp(req) });
+        await store.audit({ type: 'account_created', userId: user.id, ip: requestIp(req) });
         if (config.requireEmailVerification) {
           return json(res, 201, {
             user: sanitizeUser(user),
@@ -426,7 +446,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         await store.createSession({
           tokenHash: hashSessionToken(token), userId: user.id,
           expiresAt: new Date(Date.now() + config.sessionDays * 86_400_000).toISOString(),
-          userAgent: req.headers['user-agent'], ip: clientIp(req),
+          userAgent: req.headers['user-agent'], ip: requestIp(req),
         });
         return json(res, 201, {
           user: sanitizeUser(user),
@@ -441,10 +461,12 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
     }
 
     if (url.pathname === '/api/auth/login' && method === 'POST') {
-      const limit = authLimiter.check(`login:${clientIp(req)}`);
+      const limit = authLimiter.check(`login:${requestIp(req)}`);
       if (!limit.allowed) return json(res, 429, { error: 'rate_limited', message: 'Too many login attempts. Try again later.' });
       try {
         const body = await readJson(req, 100_000);
+        const accountLimit = authAccountLimiter.check(`login:${normalizeEmail(body.email) || 'missing'}`);
+        if (!accountLimit.allowed) return json(res, 429, { error: 'rate_limited', message: 'Too many login attempts. Try again later.' });
         const user = store.findUserByEmail(body.email);
         const valid = user && await verifyPassword(body.password, user.passwordSalt, user.passwordHash);
         if (!valid) return json(res, 401, { error: 'invalid_credentials', message: 'Email or password is incorrect.' });
@@ -454,9 +476,9 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         await store.createSession({
           tokenHash: hashSessionToken(token), userId: user.id,
           expiresAt: new Date(Date.now() + config.sessionDays * 86_400_000).toISOString(),
-          userAgent: req.headers['user-agent'], ip: clientIp(req),
+          userAgent: req.headers['user-agent'], ip: requestIp(req),
         });
-        await store.audit({ type: 'login', userId: user.id, ip: clientIp(req) });
+        await store.audit({ type: 'login', userId: user.id, ip: requestIp(req) });
         return json(res, 200, {
           user: sanitizeUser(user),
           csrfToken: csrfTokenForSession(token),
@@ -468,17 +490,20 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
     }
 
     if (url.pathname === '/api/auth/request-verification' && method === 'POST') {
-      const limit = authLimiter.check(`verification:${clientIp(req)}`);
+      const limit = authLimiter.check(`verification:${requestIp(req)}`);
       if (!limit.allowed) return json(res, 429, { error: 'rate_limited', message: 'Too many requests. Try again later.' });
       try {
         const body = await readJson(req, 100_000);
         const actor = actorFromRequest(req);
+        const verificationAccount = normalizeEmail(body.email || actor?.user?.email || '');
+        const accountLimit = authAccountLimiter.check(`verification:${verificationAccount || 'missing'}`);
+        if (!accountLimit.allowed) return json(res, 429, { error: 'rate_limited', message: 'Too many requests. Try again later.' });
         const user = actor?.user || store.findUserByEmail(body.email);
         let verification = null;
         if (user && !user.disabledAt && !user.emailVerifiedAt) {
           verification = await issueAccountToken(user, 'verify_email');
         }
-        await store.audit({ type: 'verification_requested', userId: user?.id || null, ip: clientIp(req) });
+        await store.audit({ type: 'verification_requested', userId: user?.id || null, ip: requestIp(req) });
         return json(res, 202, {
           queued: true,
           message: 'If the account exists and needs verification, instructions have been queued.',
@@ -493,20 +518,22 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         const consumed = await store.consumeAccountToken('verify_email', hashSessionToken(body.token));
         if (!consumed) return badRequest(res, 'Verification token is invalid or expired.');
         const user = await store.markEmailVerified(consumed.userId);
-        await store.audit({ type: 'email_verified', userId: consumed.userId, ip: clientIp(req) });
+        await store.audit({ type: 'email_verified', userId: consumed.userId, ip: requestIp(req) });
         return json(res, 200, { verified: true, user: sanitizeUser(user) });
       } catch (error) { return badRequest(res, error.message); }
     }
 
     if (url.pathname === '/api/auth/forgot-password' && method === 'POST') {
-      const limit = authLimiter.check(`forgot:${clientIp(req)}`);
+      const limit = authLimiter.check(`forgot:${requestIp(req)}`);
       if (!limit.allowed) return json(res, 429, { error: 'rate_limited', message: 'Too many requests. Try again later.' });
       try {
         const body = await readJson(req, 100_000);
+        const accountLimit = authAccountLimiter.check(`forgot:${normalizeEmail(body.email) || 'missing'}`);
+        if (!accountLimit.allowed) return json(res, 429, { error: 'rate_limited', message: 'Too many requests. Try again later.' });
         const user = store.findUserByEmail(body.email);
         let reset = null;
         if (user && !user.disabledAt) reset = await issueAccountToken(user, 'reset_password');
-        await store.audit({ type: 'password_reset_requested', userId: user?.id || null, ip: clientIp(req) });
+        await store.audit({ type: 'password_reset_requested', userId: user?.id || null, ip: requestIp(req) });
         return json(res, 202, { queued: true, message: 'If the account exists, password-reset instructions have been queued.', ...(config.exposeDevTokens && reset ? { reset } : {}) });
       } catch (error) { return badRequest(res, error.message); }
     }
@@ -520,7 +547,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         if (!consumed) return badRequest(res, 'Reset token is invalid or expired.');
         const { salt, hash } = await hashPassword(body.password);
         await store.updatePassword(consumed.userId, { passwordHash: hash, passwordSalt: salt });
-        await store.audit({ type: 'password_reset_completed', userId: consumed.userId, ip: clientIp(req) });
+        await store.audit({ type: 'password_reset_completed', userId: consumed.userId, ip: requestIp(req) });
         return json(res, 200, { reset: true, message: 'Password updated. Sign in with the new password.' }, { 'set-cookie': clearSessionCookie(config) });
       } catch (error) { return badRequest(res, error.message); }
     }
@@ -536,7 +563,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         if (passwordError) return badRequest(res, passwordError);
         const { salt, hash } = await hashPassword(body.newPassword);
         await store.updatePassword(actor.userId, { passwordHash: hash, passwordSalt: salt });
-        await store.audit({ type: 'password_changed', userId: actor.userId, ip: clientIp(req) });
+        await store.audit({ type: 'password_changed', userId: actor.userId, ip: requestIp(req) });
         return json(res, 200, { changed: true }, { 'set-cookie': clearSessionCookie(config) });
       } catch (error) { return badRequest(res, error.message); }
     }
@@ -551,7 +578,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
       const actor = actorFromRequest(req);
       if (!actor?.user) return unauthorized(res);
       const removed = await store.deleteAllUserSessions(actor.userId);
-      await store.audit({ type: 'sessions_revoked_all', userId: actor.userId, ip: clientIp(req), metadata: { removed } });
+      await store.audit({ type: 'sessions_revoked_all', userId: actor.userId, ip: requestIp(req), metadata: { removed } });
       return json(res, 200, { removed, loggedOut: true }, { 'set-cookie': clearSessionCookie(config) });
     }
 
@@ -587,7 +614,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         const body = await readJson(req, 100_000);
         const valid = await verifyPassword(body.password, actor.user.passwordSalt, actor.user.passwordHash);
         if (!valid) return json(res, 401, { error: 'invalid_credentials', message: 'Password is incorrect.' });
-        await store.audit({ type: 'account_deleted', userId: actor.userId, ip: clientIp(req) });
+        await store.audit({ type: 'account_deleted', userId: actor.userId, ip: requestIp(req) });
         await store.deleteUser(actor.userId);
         return json(res, 200, { deleted: true }, { 'set-cookie': clearSessionCookie(config) });
       } catch (error) { return badRequest(res, error.message); }
@@ -604,7 +631,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
   async function handleApi(req, res, url) {
     const method = req.method || 'GET';
     const limiter = url.pathname === '/api/webhooks/meta' ? metaWebhookLimiter : generalLimiter;
-    const rate = limiter.check(`${clientIp(req)}:${url.pathname.split('/').slice(0, 3).join('/')}`);
+    const rate = limiter.check(`${requestIp(req)}:${url.pathname.split('/').slice(0, 3).join('/')}`);
     res.setHeader('x-ratelimit-remaining', String(rate.remaining));
     res.setHeader('x-ratelimit-reset', String(Math.ceil(rate.resetAt / 1000)));
     if (!rate.allowed) return json(res, 429, { error: 'rate_limited', message: 'Request limit reached. Try again shortly.' });
@@ -1174,7 +1201,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
     }
 
     if (url.pathname === '/api/scan' && method === 'POST') {
-      const scanRate = scanLimiter.check(`scan:${clientIp(req)}`);
+      const scanRate = scanLimiter.check(`scan:${requestIp(req)}`);
       if (!scanRate.allowed) return json(res, 429, { error: 'scan_rate_limited', message: 'Scan limit reached. Try again in a minute.' });
       try {
         const actor = optionalWriteActor(req);
@@ -1319,7 +1346,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
     }
 
     if (url.pathname === '/api/cert/extract' && method === 'POST') {
-      const scanRate = scanLimiter.check(`cert:${clientIp(req)}`);
+      const scanRate = scanLimiter.check(`cert:${requestIp(req)}`);
       if (!scanRate.allowed) return json(res, 429, { error: 'cert_rate_limited', message: 'Cert extraction limit reached. Try again in a minute.' });
       try {
         const actor = optionalWriteActor(req);
@@ -1382,7 +1409,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
     }
 
     if (url.pathname === '/api/vision/lot-analyze' && method === 'POST') {
-      const scanRate = scanLimiter.check(`lot:${clientIp(req)}`);
+      const scanRate = scanLimiter.check(`lot:${requestIp(req)}`);
       if (!scanRate.allowed) return json(res, 429, { error: 'lot_rate_limited', message: 'Lot analysis limit reached. Try again in a minute.' });
       try {
         const body = await readJson(req, config.maxRequestBytes * 4);
@@ -1405,7 +1432,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
     }
 
     if (url.pathname === '/api/vision/lot-analyze-ebay' && method === 'POST') {
-      const scanRate = scanLimiter.check(`lot-ebay:${clientIp(req)}`);
+      const scanRate = scanLimiter.check(`lot-ebay:${requestIp(req)}`);
       if (!scanRate.allowed) return json(res, 429, { error: 'lot_rate_limited', message: 'Lot analysis limit reached. Try again in a minute.' });
       try {
         const body = await readJson(req, 250_000);
