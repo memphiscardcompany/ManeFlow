@@ -38,6 +38,22 @@ async function request(baseUrl, pathname, options = {}) {
   return { response, body, cookie: response.headers.get('set-cookie')?.split(';')[0] || '' };
 }
 
+async function registerAndLogin(baseUrl, { name, email, password }) {
+  const registered = await request(baseUrl, '/api/auth/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
+  });
+  assert.equal(registered.response.status, 202);
+  const login = await request(baseUrl, '/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  assert.equal(login.response.status, 200);
+  return login;
+}
+
 async function withServer(fn) {
   const ctx = await makeServer();
   try { return await fn(ctx); }
@@ -64,8 +80,8 @@ test('dealer decision produces merchant pricing guidance from valuation data', (
 });
 
 test('multi-shop routes isolate shop inventory and enforce merchant gates', async () => withServer(async ({ baseUrl, cards }) => {
-  const merchant = await request(baseUrl, '/api/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Shop Owner', email: 'shop@example.com', password: 'shop-password-123' }) });
-  const collector = await request(baseUrl, '/api/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Collector', email: 'collector@example.com', password: 'collector-password-123' }) });
+  const merchant = await registerAndLogin(baseUrl, { name: 'Shop Owner', email: 'shop@example.com', password: 'shop-password-123' });
+  const collector = await registerAndLogin(baseUrl, { name: 'Collector', email: 'collector@example.com', password: 'collector-password-123' });
   const users = await request(baseUrl, '/api/admin/users', { headers: { authorization: 'Bearer admin-test-token' } });
   const shopUser = users.body.users.find((u) => u.email === 'shop@example.com');
   await request(baseUrl, `/api/admin/users/${shopUser.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: 'Bearer admin-test-token' }, body: JSON.stringify({ plan: 'merchant', role: 'merchant' }) });
