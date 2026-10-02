@@ -131,6 +131,12 @@ async function applyVision(cases, { apiKey, model }) {
     const sceneAnalysis = await analyzeCardScene({ frontDataUrl, apiKey, model });
     enriched.push({
       ...testCase,
+      benchmarkEvidence: {
+        ...(testCase.benchmarkEvidence || {}),
+        realImage: true,
+        liveVision: true,
+        heldOut: ['evaluation', 'test', 'validation', 'heldout', 'holdout'].includes(String(testCase.split || 'evaluation').toLowerCase()),
+      },
       sceneAnalysis: sceneAnalysis || testCase.sceneAnalysis,
       body: {
         ...testCase.body,
