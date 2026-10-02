@@ -49,6 +49,9 @@ export function loadConfig(env = process.env) {
     demoMode: boolean(env.MANEFLOW_DEMO_MODE, true),
     requireAuthentication: boolean(env.MANEFLOW_REQUIRE_AUTHENTICATION, true),
     csrfProtection: boolean(env.MANEFLOW_CSRF_PROTECTION, true),
+    trustProxy: boolean(env.TRUST_PROXY, false),
+    trustedProxyAddresses: String(env.TRUSTED_PROXY_ADDRESSES || '127.0.0.1,::1')
+      .split(',').map((item) => item.trim()).filter(Boolean),
     allowLegacyAdminToken: boolean(env.MANEFLOW_ALLOW_LEGACY_ADMIN_TOKEN, false),
     allowGuestWrites: boolean(env.MANEFLOW_ALLOW_GUEST_WRITES, false),
     allowPublicSignups: boolean(env.MANEFLOW_ALLOW_PUBLIC_SIGNUPS, true),
