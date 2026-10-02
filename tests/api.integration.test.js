@@ -14,11 +14,28 @@ let baseUrl;
 let directory;
 let cards;
 let sales;
+let store;
 
 async function request(pathname, options = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, options);
   const body = await response.json().catch(() => ({}));
   return { response, body, cookie: response.headers.get('set-cookie')?.split(';')[0] || '' };
+}
+
+async function registerAndLogin({ name, email, password }) {
+  const registered = await request('/api/auth/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
+  });
+  assert.equal(registered.response.status, 202);
+  const login = await request('/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  assert.equal(login.response.status, 200);
+  return login;
 }
 
 before(async () => {
@@ -34,7 +51,7 @@ before(async () => {
     openaiApiKey: '', openaiVisionModel: '', providerWebhookSecret: 'test-secret', emailWebhookUrl: '', emailWebhookSecret: '',
     ebayClientId: '', ebayClientSecret: '', tcgplayerPublicKey: '', tcgplayerPrivateKey: '',
   };
-  const store = await new JsonStore(config.runtimeFile).init();
+  store = await new JsonStore(config.runtimeFile).init();
   const providers = createProviderRegistry(config, sales);
   server = http.createServer(createRouter({ config, cards, sales, providers, store, cache: new TtlCache() }));
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -56,10 +73,8 @@ test('health and market APIs respond', async () => {
 });
 
 test('accounts isolate collection data end to end', async () => {
-  const alice = await request('/api/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Alice', email: 'alice@example.com', password: 'alice-password-123' }) });
-  const bob = await request('/api/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Bob', email: 'bob@example.com', password: 'bob-password-123' }) });
-  assert.equal(alice.response.status, 201);
-  assert.equal(bob.response.status, 201);
+  const alice = await registerAndLogin({ name: 'Alice', email: 'alice@example.com', password: 'alice-password-123' });
+  const bob = await registerAndLogin({ name: 'Bob', email: 'bob@example.com', password: 'bob-password-123' });
 
   const added = await request('/api/collection', { method: 'POST', headers: { 'content-type': 'application/json', cookie: alice.cookie }, body: JSON.stringify({ cardId: cards[0].id, quantity: 1, purchasePrice: 100 }) });
   assert.equal(added.response.status, 201);
@@ -79,8 +94,7 @@ test('front/back manual scan records a candidate match', async () => {
 });
 
 test('collection logging merges duplicate matched cards and feeds portfolio value', async () => {
-  const created = await request('/api/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Logger', email: 'logger@example.com', password: 'logger-password-123' }) });
-  assert.equal(created.response.status, 201);
+  const created = await registerAndLogin({ name: 'Logger', email: 'logger@example.com', password: 'logger-password-123' });
   const first = await request('/api/collection', { method: 'POST', headers: { 'content-type': 'application/json', cookie: created.cookie }, body: JSON.stringify({ cardId: cards[0].id, name: 'Shohei Ohtani', quantity: 1, purchasePrice: 100, location: 'Box A', certNumber: '12345' }) });
   assert.equal(first.response.status, 201);
   assert.equal(first.body.merged, false);
@@ -111,9 +125,12 @@ test('admin provider ingest documents authorization basis', async () => {
 
 test('email verification and password recovery complete end to end', async () => {
   const created = await request('/api/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Charlie', email: 'charlie@example.com', password: 'charlie-password-123' }) });
-  assert.equal(created.response.status, 201);
-  assert.ok(created.body.verification.token);
-  const verified = await request('/api/auth/verify-email', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: created.body.verification.token }) });
+  assert.equal(created.response.status, 202);
+  const verificationMessage = store.state.outbox.find((item) => item.type === 'verify_email' && item.to === 'charlie@example.com');
+  assert.ok(verificationMessage?.actionUrl);
+  const verificationToken = new URL(verificationMessage.actionUrl).hash.match(/verify=([^&]+)/)?.[1];
+  assert.ok(verificationToken);
+  const verified = await request('/api/auth/verify-email', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: decodeURIComponent(verificationToken) }) });
   assert.equal(verified.response.status, 200);
   assert.ok(verified.body.user.emailVerifiedAt);
 
@@ -142,7 +159,7 @@ test('price targets create persistent alert records', async () => {
 });
 
 test('account session, export, and deletion controls work', async () => {
-  const created = await request('/api/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Delete Me', email: 'delete@example.com', password: 'delete-password-123' }) });
+  const created = await registerAndLogin({ name: 'Delete Me', email: 'delete@example.com', password: 'delete-password-123' });
   const sessions = await request('/api/auth/sessions', { headers: { cookie: created.cookie } });
   assert.equal(sessions.response.status, 200);
   assert.ok(sessions.body.sessions.length >= 1);
@@ -287,18 +304,12 @@ test('eBay completed import fails closed when Marketplace Insights access is not
 });
 
 test('collection survey HTTP workflow persists conservative estimates and enforces tenant isolation', async () => {
-  const owner = await request('/api/auth/register', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: 'Survey Owner', email: 'survey-owner@example.com', password: 'survey-owner-password-123' }),
+  const owner = await registerAndLogin({
+    name: 'Survey Owner', email: 'survey-owner@example.com', password: 'survey-owner-password-123',
   });
-  const outsider = await request('/api/auth/register', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: 'Survey Outsider', email: 'survey-outsider@example.com', password: 'survey-outsider-password-123' }),
+  const outsider = await registerAndLogin({
+    name: 'Survey Outsider', email: 'survey-outsider@example.com', password: 'survey-outsider-password-123',
   });
-  assert.equal(owner.response.status, 201);
-  assert.equal(outsider.response.status, 201);
 
   const surveyInput = {
     title: 'Storage room acquisition',
