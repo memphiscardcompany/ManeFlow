@@ -55,7 +55,9 @@ export class DatabaseRuntime {
       });
       this.catalogRepository = new CatalogRepository(this.pool);
       this.metaInboundRepository = new MetaInboundRepository(this.pool);
-      this.metaOutboundRepository = new MetaOutboundRepository(this.pool);
+      this.metaOutboundRepository = new MetaOutboundRepository(this.pool, {
+        leaseDurationMs: this.config.metaOutboundLeaseMs,
+      });
       this.metaDeliveryRepository = new MetaDeliveryRepository(this.pool);
       this.metaInboundRepository.reconcileEchoes = this.metaDeliveryRepository.reconcileEchoes.bind(this.metaDeliveryRepository);
       await this.pool.query('SELECT 1 AS ok');
