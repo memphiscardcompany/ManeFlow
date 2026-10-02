@@ -456,7 +456,8 @@ export class MetaInboundRepository {
           LIMIT 500
         `, [ownerId, id]),
         client.query(`
-          SELECT id, version, body, source, evidence, status, created_at
+          SELECT id, version, body, source, evidence, status,
+                 target_provider_message_id, created_at
           FROM public.manebrain_reply_drafts
           WHERE owner_user_id = $1 AND conversation_id = $2
           ORDER BY version DESC
