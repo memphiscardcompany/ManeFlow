@@ -183,7 +183,7 @@ export class JsonStore {
     return this.state.users.find((user) => user.id === id) || null;
   }
 
-  async createUser({ email, name, passwordHash, passwordSalt, role = 'collector' }) {
+  async createUser({ email, name, passwordHash, passwordSalt, passwordParams = null, role = 'collector' }) {
     if (this.findUserByEmail(email)) throw new Error('An account already exists for this email.');
     const user = {
       id: makeId('user'),
@@ -191,6 +191,10 @@ export class JsonStore {
       name: string(name, 160) || 'Collector',
       passwordHash,
       passwordSalt,
+      passwordParams: passwordParams ? structuredClone(passwordParams) : null,
+      mfaTotpSecret: null,
+      mfaTotpPendingSecret: null,
+      mfaEnabledAt: null,
       role: ['collector', 'merchant', 'admin'].includes(role) ? role : 'collector',
       plan: 'free',
       emailVerifiedAt: null,
@@ -209,8 +213,19 @@ export class JsonStore {
     this.state.sessions.push({
       id: makeId('session'), tokenHash, userId, expiresAt,
       userAgent: string(userAgent, 300), ip: string(ip, 100), createdAt: new Date().toISOString(),
+      mfaVerifiedAt: null,
+      reauthenticatedAt: null,
     });
     await this.persist();
+  }
+
+  async markSessionStepUp(tokenHash, { mfaVerifiedAt, reauthenticatedAt } = {}) {
+    const session = this.findSession(tokenHash);
+    if (!session) return null;
+    if (mfaVerifiedAt !== undefined) session.mfaVerifiedAt = mfaVerifiedAt || null;
+    if (reauthenticatedAt !== undefined) session.reauthenticatedAt = reauthenticatedAt || null;
+    await this.persist();
+    return structuredClone(session);
   }
 
   findSession(tokenHash) {
@@ -278,13 +293,34 @@ export class JsonStore {
     return user;
   }
 
-  async updatePassword(userId, { passwordHash, passwordSalt }) {
+  async updatePassword(userId, { passwordHash, passwordSalt, passwordParams = null }) {
     const user = this.findUserById(userId);
     if (!user) return null;
     user.passwordHash = passwordHash;
     user.passwordSalt = passwordSalt;
+    user.passwordParams = passwordParams ? structuredClone(passwordParams) : null;
     user.updatedAt = new Date().toISOString();
     await this.deleteAllUserSessions(userId);
+    await this.persist();
+    return user;
+  }
+
+  async beginTotpEnrollment(userId, secret) {
+    const user = this.findUserById(userId);
+    if (!user) return null;
+    user.mfaTotpPendingSecret = string(secret, 256);
+    user.updatedAt = new Date().toISOString();
+    await this.persist();
+    return user;
+  }
+
+  async completeTotpEnrollment(userId) {
+    const user = this.findUserById(userId);
+    if (!user?.mfaTotpPendingSecret) return null;
+    user.mfaTotpSecret = user.mfaTotpPendingSecret;
+    user.mfaTotpPendingSecret = null;
+    user.mfaEnabledAt = new Date().toISOString();
+    user.updatedAt = new Date().toISOString();
     await this.persist();
     return user;
   }
@@ -304,7 +340,7 @@ export class JsonStore {
   exportUserData(userId) {
     const user = this.findUserById(userId);
     if (!user) return null;
-    const { passwordHash, passwordSalt, ...safeUser } = user;
+    const { passwordHash, passwordSalt, passwordParams, mfaTotpSecret, mfaTotpPendingSecret, ...safeUser } = user;
     return { exportedAt: new Date().toISOString(), user: structuredClone(safeUser), data: this.userSnapshot(userId) };
   }
 
