@@ -104,7 +104,9 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
         if detection_index == 0:
             primary_identity = crop_identity
         crop_manual = (
-            crop_identity.identity_confidence < 0.92
+            detection.fallback_whole_image
+            or crop_identity.card.card_id is None
+            or crop_identity.identity_confidence < 0.92
             or crop_identity.variant_confidence < 0.85
             or crop_identity.needs_back_image
         )
@@ -113,6 +115,7 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
                 detection_index=detection_index,
                 bounding_box_px=detection.bounding_box_px,
                 detection_confidence=detection.confidence,
+                fallback_whole_image=detection.fallback_whole_image,
                 predicted_card=crop_identity.card,
                 identity_confidence=crop_identity.identity_confidence,
                 variant_confidence=crop_identity.variant_confidence,
@@ -160,9 +163,18 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
         identity = await identity_engine._enrich_with_psa(identity)
     warnings.extend(identity.warnings)
 
-    pricing = await comps_service.pricing_for_card(identity.card)
+    # A provider extraction is a candidate, not a canonical priced catalog row.
+    # Only a resolved, sufficiently supported identity may enter pricing.
+    pricing_eligible = (
+        identity.card.card_id is not None
+        and identity.identity_confidence >= 0.92
+        and identity.variant_confidence >= 0.85
+        and not identity.needs_back_image
+        and not (ordered_detections and ordered_detections[0].fallback_whole_image)
+    )
+    pricing = await comps_service.pricing_for_card(identity.card if pricing_eligible else None)
     needs_manual_confirmation = (
-        identity.identity_confidence < 0.92
+        not pricing_eligible
         or identity.variant_confidence < 0.85
         or identity.needs_back_image
         or pricing["pricing_status"] != "verified"

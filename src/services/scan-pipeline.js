@@ -4,7 +4,7 @@ import { evaluateScanConfidence } from './scan-confidence.js';
 import { createScanSession } from './scan-session.js';
 import { recognizeCardScene } from './recognition-engine.js';
 import { analyzeCardScene } from './vision.js';
-import { VisionWorkerClient, workerCardToLegacyVision } from './vision-worker-client.js';
+import { VisionWorkerClient, workerCardToLegacyVision, workerScanToSceneAnalysis } from './vision-worker-client.js';
 import { analyzeGradedCert } from './graded-cert.js';
 import { canAccessOrganization } from './shop-permissions.js';
 import { recordUsage } from './usage-metering.js';
@@ -207,6 +207,7 @@ export function createScanPipeline({
       vision = sceneAnalysis?.primaryCard || vision;
     }
 
+    if (!sceneAnalysis && workerScan) sceneAnalysis = workerScanToSceneAnalysis(workerScan);
     if (!vision && workerScan && Number(workerScan.identity_confidence || 0) > 0) {
       vision = workerCardToLegacyVision(workerScan);
     }
@@ -230,11 +231,12 @@ export function createScanPipeline({
       result: { gradedCert },
       matches,
     });
+    const needsConfirmation = primary.requiresManualConfirmation ?? scanConfidence.needsManualConfirmation;
     const result = {
       mode: primary.mode || (sceneAnalysis ? 'vision_scene_catalog_match' : 'manual_text_match'),
       query: primary.query || '',
-      exact: Boolean(primary.exact && !scanConfidence.needsManualConfirmation),
-      needsConfirmation: scanConfidence.needsManualConfirmation,
+      exact: Boolean(primary.exact && !needsConfirmation),
+      needsConfirmation,
       message: recognition.message,
       matches,
     };
@@ -264,7 +266,7 @@ export function createScanPipeline({
       );
       await recordUsage(store, actor, 'scan_session', 1, {
         scanSessionId: scanSession.id,
-        needsManualConfirmation: scanConfidence.needsManualConfirmation,
+        needsManualConfirmation: needsConfirmation,
       });
     }
 

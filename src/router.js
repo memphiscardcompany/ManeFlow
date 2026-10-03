@@ -37,7 +37,7 @@ import { buildPricingImportTemplate, ingestPricingData, rollbackPricingBatch, su
 import { importSportsChecklistCsv, importSportsChecklistJson } from './services/sports-catalog-importer.js';
 import { importTcgCatalog } from './services/tcg-catalog-importer.js';
 import { analyzeCardImages, analyzeCardScene } from './services/vision.js';
-import { VisionWorkerClient, workerCardToLegacyVision } from './services/vision-worker-client.js';
+import { VisionWorkerClient, workerCardToLegacyVision, workerScanToSceneAnalysis } from './services/vision-worker-client.js';
 import { analyzeGradedCert } from './services/graded-cert.js';
 import { buildCollectionSurvey, listCollectionSurveys, saveCollectionSurvey } from './services/collection-survey.js';
 import { imageCoverageReport, ingestImageEnrichment, rollbackImageEnrichmentBatch } from './services/image-enrichment.js';
@@ -1388,6 +1388,7 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
           });
           vision = sceneAnalysis?.primaryCard || null;
         }
+        if (!sceneAnalysis && workerScan) sceneAnalysis = workerScanToSceneAnalysis(workerScan);
         if (!vision && workerScan && Number(workerScan.identity_confidence || 0) > 0) {
           vision = workerCardToLegacyVision(workerScan);
         }
@@ -1405,15 +1406,16 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         const primary = recognition.primary || {};
         const matches = primary.matches || [];
         const scanConfidence = primary.scanConfidence || evaluateScanConfidence({ body: scanBody, vision, result: { gradedCert }, matches });
+        const needsConfirmation = primary.requiresManualConfirmation ?? scanConfidence.needsManualConfirmation;
         const result = {
           mode: primary.mode || (sceneAnalysis ? 'vision_scene_catalog_match' : 'manual_text_match'),
           query: primary.query || '',
-          exact: Boolean(primary.exact && !scanConfidence.needsManualConfirmation),
-          needsConfirmation: scanConfidence.needsManualConfirmation,
+          exact: Boolean(primary.exact && !needsConfirmation),
+          needsConfirmation,
           message: recognition.message,
           matches,
         };
-        const marketContext = matches[0] ? await marketContextForCard(matches[0]) : { available: false, provider: null, reason: 'no_match' };
+        const marketContext = result.exact && matches[0] ? await marketContextForCard(matches[0]) : { available: false, provider: null, reason: 'identity_unconfirmed' };
         let scan = null;
         let scanSession = null;
         if (actor) {
@@ -1423,12 +1425,12 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
           });
           await recordUsage(store, actor, 'scan', 1, { mode: result.mode, remoteVision: Boolean(sceneAnalysis), confidence: scanConfidence.scanConfidenceScore, detectedCards: recognition.summary.detectedCards });
           scanSession = await createScanSession(store, actor, { body: scanBody, vision, result: { ...result, gradedCert }, matches, recognition }, { cards: catalog() });
-          await recordUsage(store, actor, 'scan_session', 1, { scanSessionId: scanSession.id, needsManualConfirmation: scanConfidence.needsManualConfirmation });
+          await recordUsage(store, actor, 'scan_session', 1, { scanSessionId: scanSession.id, needsManualConfirmation: needsConfirmation });
         }
         return json(res, 200, {
           ...result, matches, recognition, vision, sceneAnalysis, workerScan, workerError, vectorMatches, vectorSearchError, localOcr, gradedCert, scanConfidence, marketContext, scanId: scan?.id || null, scanSessionId: scanSession?.id || null,
           imageProcessedRemotely: Boolean(sceneAnalysis || workerScan?.image_processed_remotely), visionWorkerUsed: Boolean(workerScan), marketMode: marketMode(config, store.state.customSales.length),
-          message: scanConfidence.needsManualConfirmation ? scanConfidence.recommendedNextStep : (sceneAnalysis ? 'Scene imagery was analyzed, then each detected region was matched against the ManeFlow catalog. Confirm condition before transacting.' : result.message),
+          message: needsConfirmation ? recognition.message : (sceneAnalysis ? 'Scene imagery was analyzed, then each detected region was matched against the ManeFlow catalog. Confirm condition before transacting.' : result.message),
         });
       } catch (error) {
         return badRequest(res, error.message);

@@ -98,6 +98,7 @@ class DetectedCardResult(BaseModel):
     detection_index: int = Field(ge=0)
     bounding_box_px: tuple[int, int, int, int]
     detection_confidence: float = Field(ge=0, le=1)
+    fallback_whole_image: bool = False
     predicted_card: PredictedCard
     identity_confidence: float = Field(ge=0, le=1)
     variant_confidence: float = Field(default=0, ge=0, le=1)
