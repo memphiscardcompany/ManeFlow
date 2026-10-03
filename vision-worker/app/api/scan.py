@@ -57,6 +57,7 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
     identity_media_type = image.content_type
     barcode_source = decoded
     detected_cards: list[DetectedCardResult] = []
+    primary_identity = None
 
     # A scene is a set of independent cards, not one image-level identity.
     # Put the strongest card first for backwards-compatible top-level fields,
@@ -100,6 +101,8 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
             barcode_values=crop_barcodes,
         )
         crop_identity = await identity_engine._enrich_with_psa(crop_identity)
+        if detection_index == 0:
+            primary_identity = crop_identity
         crop_manual = (
             crop_identity.identity_confidence < 0.92
             or crop_identity.variant_confidence < 0.85
@@ -143,16 +146,9 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
         except EmbeddingEngineError as exc:
             warnings.append(f"Local embedding extraction unavailable: {exc}")
 
-    if detected_cards:
-        primary = detected_cards[0]
-        barcode_values = primary.barcode_values
-        identity = await identity_engine.identify(
-            identity_payload,
-            image.filename,
-            media_type=identity_media_type,
-            barcode_values=barcode_values,
-        )
-        identity = await identity_engine._enrich_with_psa(identity)
+    if detected_cards and primary_identity is not None:
+        barcode_values = detected_cards[0].barcode_values
+        identity = primary_identity
     else:
         barcode_values = decode_barcodes(barcode_source)
         identity = await identity_engine.identify(
