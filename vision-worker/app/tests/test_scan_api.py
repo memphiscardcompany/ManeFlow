@@ -39,6 +39,8 @@ def test_single_scan_detects_object_but_does_not_invent_identity_or_price():
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["detected_object_count"] >= 1
+    assert len(payload["detected_cards"]) == payload["detected_object_count"]
+    assert payload["detected_cards"][0]["identity_provider"] == "unconfigured"
     assert payload["identity_provider"] == "unconfigured"
     assert payload["identity_confidence"] == 0
     assert payload["predicted_card"]["player_name"] is None
