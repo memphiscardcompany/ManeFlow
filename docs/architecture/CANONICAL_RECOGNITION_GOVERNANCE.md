@@ -12,7 +12,7 @@ Issue #47 and `CODEX-WORK-ORDER-VISION-3.md` define the acceptance contract. Thi
 | Video tracking and crop calls into the same identity engine | `vision-worker/app/services/live_session.py` |
 | Worker to catalog scene handoff | `src/services/vision-worker-client.js` |
 | Catalog matching, selective decision, and abstention | `src/services/recognition-engine.js` and `src/services/recognition-decision.js` |
-| Customer scan HTTP path | `src/router.js` and `src/services/scan-pipeline.js` |
+| Direct and durable customer scan processing | `src/services/scan-pipeline.js`; `src/router.js` and `server.js` only route requests to the shared pipeline |
 
 Every detected crop must retain its own bounds, text, identity fields, field confidence, variant confidence, warnings, and manual review state. Image-level text and a top-ranked detection must not stand in for other card regions. A whole-image fallback is a review candidate, not a confirmed physical card. Remote scene analysis may provide a fallback when the local worker does not return physical regions; it may not replace a valid local multi-card scene.
 
@@ -29,6 +29,8 @@ The release scorer in `vision-worker/tools/evaluate_identity_release.py` consume
 ## Consolidation rule
 
 PR #46 is the active recognition lineage based on `codex/maneflow-vision-3`. PR #43's localization gate and PR #44's live market refresh were recovered into that lineage after focused verification. Keep other historical branches for audit until their unique behavior has been compared with this lineage. Remove duplicate runtime paths only after their callers are migrated, tests prove the replacement, and the branch diff shows no unique capability is lost. Never force-push or edit `main` directly.
+
+The direct `/api/scan` handler and durable scan jobs now call the same `createScanPipeline` instance. The former handler's duplicate recognition and persistence sequence was removed after its public API tests and shared-pipeline route test passed. The handler still owns HTTP authentication, limits, and response market context.
 
 CI must keep the Node, Python vision, security, native/mobile, container, and provenance gates enabled. A failed advisory or unavailable external benchmark is reported as a failed or unverified gate, never reclassified as success.
 The pull request workflow checks out `github.event.pull_request.head.sha` and verifies `git rev-parse HEAD` before each job; container revision labels use that same source SHA. GitHub's temporary merge commit is a separate integration signal and must not be cited as an exact-head test.
