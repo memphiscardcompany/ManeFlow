@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calculateValuation } from './services/valuation.js';
@@ -175,8 +176,54 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
   const authLimiter = new RateLimiter({ windowMs: 15 * 60_000, max: 30 });
   const authAccountLimiter = new RateLimiter({ windowMs: 15 * 60_000, max: 10 });
   const scanLimiter = new RateLimiter({ windowMs: 60_000, max: 30 });
+  const liveFrameLimiter = new RateLimiter({ windowMs: 60_000, max: 120 });
   const requestIp = (req) => clientIp(req, config);
-  const visionWorker = new VisionWorkerClient({ baseUrl: config.visionWorkerUrl, timeoutMs: config.visionWorkerTimeoutMs });
+  const visionWorker = new VisionWorkerClient({ baseUrl: config.visionWorkerUrl, timeoutMs: config.visionWorkerTimeoutMs, serviceToken: config.serviceToken });
+  const liveSessionTtlMs = 30 * 60_000;
+  const liveSessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const maxLiveFrameBytes = config.maxLiveFrameBytes || 1_500_000;
+  const liveSessionOwners = new Map((store.state.liveSessions || [])
+    .filter((entry) => entry?.sessionId && entry.expiresAt > Date.now())
+    .map((entry) => [entry.sessionId, entry]));
+
+  async function persistLiveOwners() {
+    store.state.liveSessions = [...liveSessionOwners.values()].filter((entry) => !entry.pending && entry.expiresAt > Date.now());
+    await store.persist();
+  }
+
+  function pruneLiveOwners() {
+    let changed = false;
+    for (const [id, owner] of liveSessionOwners) if (owner.expiresAt <= Date.now()) {
+      liveSessionOwners.delete(id);
+      if (!owner.pending) void visionWorker.closeLiveSession(id).catch(() => {});
+      changed = true;
+    }
+    if (changed) void persistLiveOwners().catch(() => {});
+  }
+
+  function liveWorkerFailure(res, error, sessionId = null) {
+    const status = Number(error?.status);
+    if (status === 404 && sessionId) {
+      liveSessionOwners.delete(sessionId);
+      void persistLiveOwners().catch(() => {});
+    }
+    const code = status === 404 ? 'live_session_gone' : status === 413 ? 'live_frame_too_large'
+      : status === 415 ? 'live_frame_unsupported' : status === 422 ? 'live_options_invalid'
+        : status === 429 ? 'live_worker_busy' : 'live_worker_unavailable';
+    const httpStatus = [404, 413, 415, 422, 429].includes(status) ? status : 503;
+    return json(res, httpStatus, { error: code, message: 'Live scanning is unavailable or this request was rejected.' });
+  }
+
+  function ownedLiveSession(req, res, sessionId) {
+    const actor = actorFromRequest(req);
+    if (!actor?.user || actor.service) return unauthorized(res), null;
+    if (!liveSessionIdPattern.test(sessionId)) return badRequest(res, 'Invalid live session id.'), null;
+    pruneLiveOwners();
+    const owner = liveSessionOwners.get(sessionId);
+    if (!owner || owner.expiresAt <= Date.now()) return notFound(res, 'Live session not found'), null;
+    if (owner.userId !== actor.userId) return forbidden(res, 'This live session belongs to another account.'), null;
+    return actor;
+  }
 
   function catalog() {
     return [...bundledCards, ...store.state.customCards];
@@ -1382,16 +1429,23 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
           };
         }
 
-        if ((frontDataUrl || certDataUrl) && config.openaiApiKey && config.openaiVisionModel) {
+        if (workerScan) {
+          sceneAnalysis = workerScanToSceneAnalysis(workerScan);
+          vision = sceneAnalysis?.primaryCard || vision;
+        }
+        if (!sceneAnalysis && (frontDataUrl || certDataUrl) && config.openaiApiKey && config.openaiVisionModel) {
           sceneAnalysis = await analyzeCardScene({
             frontDataUrl: frontDataUrl || certDataUrl, backDataUrl, certDataUrl, apiKey: config.openaiApiKey, model: config.openaiVisionModel,
           });
           vision = sceneAnalysis?.primaryCard || null;
         }
-        if (!sceneAnalysis && workerScan) sceneAnalysis = workerScanToSceneAnalysis(workerScan);
         if (!vision && workerScan && Number(workerScan.identity_confidence || 0) > 0) {
           vision = workerCardToLegacyVision(workerScan);
         }
+        const remoteVisionUsed = Boolean(
+          (sceneAnalysis && sceneAnalysis.scene?.processingStrategy !== 'local_vision_worker_per_card')
+          || workerScan?.image_processed_remotely,
+        );
         const gradedCert = await analyzeGradedCert({ body, vision }, { state: store.state, actor });
         const scanBody = { ...body, gradedCert };
         const recognition = recognizeCardScene({
@@ -1421,15 +1475,15 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
         if (actor) {
           scan = await store.recordScan(actor.userId, {
             mode: result.mode, query: result.query, matchIds: matches.map((card) => card.id),
-            imageProcessedRemotely: Boolean(sceneAnalysis), frontBack: Boolean(backDataUrl), warnings: [...(vision?.warnings || []), ...scanConfidence.warnings],
+            imageProcessedRemotely: remoteVisionUsed, frontBack: Boolean(backDataUrl), warnings: [...(vision?.warnings || []), ...scanConfidence.warnings],
           });
-          await recordUsage(store, actor, 'scan', 1, { mode: result.mode, remoteVision: Boolean(sceneAnalysis), confidence: scanConfidence.scanConfidenceScore, detectedCards: recognition.summary.detectedCards });
+          await recordUsage(store, actor, 'scan', 1, { mode: result.mode, remoteVision: remoteVisionUsed, confidence: scanConfidence.scanConfidenceScore, detectedCards: recognition.summary.detectedCards });
           scanSession = await createScanSession(store, actor, { body: scanBody, vision, result: { ...result, gradedCert }, matches, recognition }, { cards: catalog() });
           await recordUsage(store, actor, 'scan_session', 1, { scanSessionId: scanSession.id, needsManualConfirmation: needsConfirmation });
         }
         return json(res, 200, {
           ...result, matches, recognition, vision, sceneAnalysis, workerScan, workerError, vectorMatches, vectorSearchError, localOcr, gradedCert, scanConfidence, marketContext, scanId: scan?.id || null, scanSessionId: scanSession?.id || null,
-          imageProcessedRemotely: Boolean(sceneAnalysis || workerScan?.image_processed_remotely), visionWorkerUsed: Boolean(workerScan), marketMode: marketMode(config, store.state.customSales.length),
+          imageProcessedRemotely: remoteVisionUsed, visionWorkerUsed: Boolean(workerScan), marketMode: marketMode(config, store.state.customSales.length),
           message: needsConfirmation ? recognition.message : (sceneAnalysis ? 'Scene imagery was analyzed, then each detected region was matched against the ManeFlow catalog. Confirm condition before transacting.' : result.message),
         });
       } catch (error) {
@@ -1490,6 +1544,108 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
       }
     }
 
+
+    if (url.pathname === '/api/vision/live/sessions' && method === 'GET') {
+      const actor = actorFromRequest(req);
+      if (!actor?.user || actor.service) return unauthorized(res);
+      pruneLiveOwners();
+      return json(res, 200, { sessions: [...liveSessionOwners.values()]
+        .filter((entry) => !entry.pending && entry.userId === actor.userId)
+        .map((entry) => ({ session_id: entry.sessionId, expires_at: new Date(entry.expiresAt).toISOString() })) });
+    }
+
+    if (url.pathname === '/api/vision/live/sessions' && method === 'POST') {
+      const actor = personalActor(req, res, { write: true });
+      if (!actor) return;
+      if (!actor.user || actor.service) return unauthorized(res);
+      if (!scanLimiter.check(`live-create:${actor.userId}`).allowed) {
+        return json(res, 429, { error: 'live_rate_limited', message: 'Live session limit reached. Try again in a minute.' });
+      }
+      if (!usageGate(store, actor, 'scan_session').allowed) {
+        return json(res, 402, { error: 'usage_limit', message: 'Daily live session limit reached.' });
+      }
+      pruneLiveOwners();
+      const active = [...liveSessionOwners.values()].filter((entry) => entry.userId === actor.userId);
+      if (active.length >= 2) return json(res, 429, { error: 'live_session_limit', message: 'Two live sessions are already active.' });
+      const reservationId = `pending:${randomUUID()}`;
+      liveSessionOwners.set(reservationId, { sessionId: reservationId, userId: actor.userId, pending: true, expiresAt: Date.now() + 30_000 });
+      try {
+        const options = await readJson(req, 10_000);
+        if (options?.mode != null && !['live', 'sweep', 'binder', 'break', 'show_intake', 'shop_counter'].includes(options.mode)) {
+          return badRequest(res, 'Invalid live mode.');
+        }
+        const session = await visionWorker.createLiveSession({ mode: options?.mode || 'live' });
+        if (!liveSessionIdPattern.test(String(session?.session_id || ''))) throw new Error('Invalid worker session id');
+        liveSessionOwners.set(session.session_id, { sessionId: session.session_id, userId: actor.userId, createdAt: Date.now(), expiresAt: Date.now() + liveSessionTtlMs });
+        await persistLiveOwners();
+        await recordUsage(store, actor, 'scan_session');
+        return json(res, 201, session);
+      } catch (error) {
+        return liveWorkerFailure(res, error);
+      } finally {
+        liveSessionOwners.delete(reservationId);
+      }
+    }
+
+    const liveSession = /^\/api\/vision\/live\/sessions\/([^/]+)$/.exec(url.pathname);
+    if (liveSession && (method === 'GET' || method === 'DELETE')) {
+      const sessionId = liveSession[1];
+      if (!ownedLiveSession(req, res, sessionId)) return;
+      try {
+        const result = method === 'DELETE'
+          ? await visionWorker.closeLiveSession(sessionId)
+          : await visionWorker.getLiveSession(sessionId);
+        if (method === 'DELETE') {
+          liveSessionOwners.delete(sessionId);
+          await persistLiveOwners();
+        }
+        return json(res, 200, result);
+      } catch (error) {
+        return liveWorkerFailure(res, error, sessionId);
+      }
+    }
+
+    const liveFrame = /^\/api\/vision\/live\/sessions\/([^/]+)\/frames$/.exec(url.pathname);
+    if (liveFrame && method === 'POST') {
+      const sessionId = liveFrame[1];
+      const actor = ownedLiveSession(req, res, sessionId);
+      if (!actor) return;
+      if (!liveFrameLimiter.check(`live-frame:${actor.userId}`).allowed) {
+        return json(res, 429, { error: 'live_frame_rate_limited', message: 'Live frame limit reached. Slow the capture rate.' });
+      }
+      try {
+        const body = await readJson(req, Math.ceil(maxLiveFrameBytes * 4 / 3) + 1024);
+        if (!body?.dataUrl || typeof body.dataUrl !== 'string') return badRequest(res, 'A frame dataUrl is required.');
+        const base64 = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/i.exec(body.dataUrl);
+        if (!base64) return badRequest(res, 'A supported base64 image dataUrl is required.');
+        if (Buffer.byteLength(base64[2], 'base64') > maxLiveFrameBytes) {
+          return json(res, 413, { error: 'live_frame_too_large', message: 'Live frame exceeds the configured limit.' });
+        }
+        const day = new Date().toISOString().slice(0, 10);
+        const key = `${actor.userId}:${day}`;
+        const dailyCap = Math.min(config.maxLiveFramesPerDay || 20_000, (entitlementsFor(actor).scansPerDay ?? 2_000) * 10);
+        store.state.liveFrameUsage ||= {};
+        for (const usageKey of Object.keys(store.state.liveFrameUsage)) {
+          if (!usageKey.endsWith(`:${day}`)) delete store.state.liveFrameUsage[usageKey];
+        }
+        const used = Number(store.state.liveFrameUsage[key] || 0);
+        if (used >= dailyCap) return json(res, 402, { error: 'live_frame_budget', message: 'Daily live frame budget reached.' });
+        store.state.liveFrameUsage[key] = used + 1;
+        await store.persist();
+        const result = await visionWorker.processLiveFrame(sessionId, body.dataUrl);
+        const owner = liveSessionOwners.get(sessionId);
+        if (owner && owner.expiresAt - Date.now() < liveSessionTtlMs - 60_000) {
+          owner.expiresAt = Date.now() + liveSessionTtlMs;
+          await persistLiveOwners();
+        }
+        return json(res, 200, result);
+      } catch (error) {
+        if (/too large/i.test(String(error?.message)) && !error?.status) {
+          return json(res, 413, { error: 'live_frame_too_large', message: 'Live frame exceeds the configured limit.' });
+        }
+        return liveWorkerFailure(res, error, sessionId);
+      }
+    }
 
     if (url.pathname === '/api/vision/status' && method === 'GET') {
       try {

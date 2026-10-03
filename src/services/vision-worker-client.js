@@ -109,6 +109,7 @@ export class VisionWorkerClient {
     sleepFn = sleep,
     nowFn = Date.now,
     idempotencySecret = randomBytes(32),
+    serviceToken = '',
   } = {}) {
     this.baseUrl = cleanBaseUrl(baseUrl);
     this.timeoutMs = timeoutMs;
@@ -117,6 +118,7 @@ export class VisionWorkerClient {
     this.retryMaxMs = Math.max(this.retryBaseMs, Math.floor(Number(retryMaxMs) || 15_000));
     this.sleepFn = sleepFn;
     this.nowFn = nowFn;
+    this.serviceToken = String(serviceToken || '').trim();
     this.cooldownUntil = 0;
     this.inflightScans = new Map();
     const suppliedSecret = Buffer.isBuffer(idempotencySecret)
@@ -145,6 +147,10 @@ export class VisionWorkerClient {
       await this.waitForSharedCooldown();
       const requestOptions = {
         ...fetchOptions,
+        headers: {
+          ...(fetchOptions.headers || {}),
+          ...(this.serviceToken ? { authorization: `Bearer ${this.serviceToken}` } : {}),
+        },
         signal: AbortSignal.timeout(timeoutMs),
       };
       if (bodyFactory) requestOptions.body = bodyFactory();
@@ -184,6 +190,42 @@ export class VisionWorkerClient {
 
   health() { return this.request('/health', { timeoutMs: 5_000 }); }
   readiness() { return this.request('/readiness', { timeoutMs: 8_000 }); }
+
+  createLiveSession(options = {}) {
+    return this.request('/v1/live/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(options),
+      retryable: false,
+    });
+  }
+
+  getLiveSession(sessionId) {
+    return this.request(`/v1/live/sessions/${encodeURIComponent(sessionId)}`);
+  }
+
+  closeLiveSession(sessionId) {
+    return this.request(`/v1/live/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+  }
+
+  processLiveFrame(sessionId, dataUrl) {
+    const { mediaType, bytes } = parseDataUrl(dataUrl);
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(mediaType)) {
+      const error = new Error('Unsupported live frame type.');
+      error.status = 415;
+      throw error;
+    }
+    if (bytes.length > 1_500_000) {
+      const error = new Error('Live frame exceeds the 1.5 MB limit.');
+      error.status = 413;
+      throw error;
+    }
+    const form = new FormData();
+    form.append('frame', new Blob([bytes], { type: mediaType }), 'live-frame.jpg');
+    return this.request(`/v1/live/sessions/${encodeURIComponent(sessionId)}/frames`, {
+      method: 'POST', body: form, retryable: false,
+    });
+  }
 
   async scanDataUrl(dataUrl, {
     filename = 'card-scan.jpg',

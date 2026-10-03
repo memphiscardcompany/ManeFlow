@@ -30,6 +30,7 @@ export function createScanPipeline({
   const visionWorker = new VisionWorkerClient({
     baseUrl: config.visionWorkerUrl,
     timeoutMs: config.visionWorkerTimeoutMs,
+    serviceToken: config.serviceToken,
   });
   const cardImageOptions = imageConfig(config);
 
@@ -196,7 +197,12 @@ export function createScanPipeline({
       };
     }
 
-    if ((frontDataUrl || certDataUrl) && config.openaiApiKey && config.openaiVisionModel) {
+    if (workerScan) {
+      sceneAnalysis = workerScanToSceneAnalysis(workerScan);
+      vision = sceneAnalysis?.primaryCard || vision;
+    }
+
+    if (!sceneAnalysis && (frontDataUrl || certDataUrl) && config.openaiApiKey && config.openaiVisionModel) {
       sceneAnalysis = await analyzeCardScene({
         frontDataUrl: frontDataUrl || certDataUrl,
         backDataUrl,
@@ -207,10 +213,13 @@ export function createScanPipeline({
       vision = sceneAnalysis?.primaryCard || vision;
     }
 
-    if (!sceneAnalysis && workerScan) sceneAnalysis = workerScanToSceneAnalysis(workerScan);
     if (!vision && workerScan && Number(workerScan.identity_confidence || 0) > 0) {
       vision = workerCardToLegacyVision(workerScan);
     }
+    const remoteVisionUsed = Boolean(
+      (sceneAnalysis && sceneAnalysis.scene?.processingStrategy !== 'local_vision_worker_per_card')
+      || workerScan?.image_processed_remotely,
+    );
 
     const gradedCert = await analyzeGradedCert({ body, vision }, { state: store.state, actor });
     const scanBody = { ...body, gradedCert };
@@ -248,13 +257,13 @@ export function createScanPipeline({
         mode: result.mode,
         query: result.query,
         matchIds: matches.map((card) => card.id),
-        imageProcessedRemotely: Boolean(sceneAnalysis),
+        imageProcessedRemotely: remoteVisionUsed,
         frontBack: Boolean(backDataUrl),
         warnings: [...(vision?.warnings || []), ...scanConfidence.warnings],
       });
       await recordUsage(store, actor, 'scan', 1, {
         mode: result.mode,
-        remoteVision: Boolean(sceneAnalysis),
+        remoteVision: remoteVisionUsed,
         confidence: scanConfidence.scanConfidenceScore,
         detectedCards: recognition.summary.detectedCards,
       });
@@ -284,7 +293,7 @@ export function createScanPipeline({
       scanConfidence,
       scanId: scan?.id || null,
       scanSessionId: scanSession?.id || null,
-      imageProcessedRemotely: Boolean(sceneAnalysis || workerScan?.image_processed_remotely),
+      imageProcessedRemotely: remoteVisionUsed,
       visionWorkerUsed: Boolean(workerScan),
       marketMode: marketMode(config, (store.state.customSales || []).length),
       message: scanConfidence.needsManualConfirmation
