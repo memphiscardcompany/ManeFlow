@@ -70,8 +70,11 @@ test('published images are digest-addressed, SBOM-enabled, provenance-enabled, s
 test('ordinary verification builds and smoke-tests both non-root release containers', async () => {
   const workflow = await read('.github/workflows/verify.yml');
   assert.match(workflow, /container-build:/);
-  assert.match(workflow, /docker build --pull[\s\S]*--tag "maneflow-ci:\$\{GITHUB_SHA\}"/);
-  assert.match(workflow, /docker build --pull[\s\S]*--tag "maneflow-vision-ci:\$\{GITHUB_SHA\}"/);
+  assert.match(workflow, /SOURCE_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+  assert.equal((workflow.match(/ref: \$\{\{ env\.SOURCE_SHA \}\}/g) || []).length, 5);
+  assert.equal((workflow.match(/test "\$\(git rev-parse HEAD\)" = "\$SOURCE_SHA"/g) || []).length, 5);
+  assert.match(workflow, /docker build --pull[\s\S]*--tag "maneflow-ci:\$\{SOURCE_SHA\}"/);
+  assert.match(workflow, /docker build --pull[\s\S]*--tag "maneflow-vision-ci:\$\{SOURCE_SHA\}"/);
   assert.match(workflow, /\.Config\.User/);
   assert.match(workflow, /= "node"/);
   assert.match(workflow, /= "maneflow"/);
