@@ -7,6 +7,9 @@ on:
 permissions:
   contents: read
 
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
 concurrency:
   group: verify-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -17,6 +20,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Verify exact source commit
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
@@ -45,6 +52,11 @@ jobs:
       CARD_DETECTOR_BACKEND: classical
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Verify exact source commit
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
       - name: Record Python runtime
         run: python3 --version
       - name: Install deterministic CPU vision dependencies
@@ -70,30 +82,34 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Verify exact source commit
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
       - name: Build application container from the exact commit
         run: |
           set -Eeuo pipefail
           docker build --pull \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --tag "maneflow-ci:${GITHUB_SHA}" \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            --tag "maneflow-ci:${SOURCE_SHA}" \
             .
       - name: Build CPU-safe vision container from the exact commit
         run: |
           set -Eeuo pipefail
           docker build --pull \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --tag "maneflow-vision-ci:${GITHUB_SHA}" \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            --tag "maneflow-vision-ci:${SOURCE_SHA}" \
             ./vision-worker
       - name: Verify non-root runtime contracts
         run: |
           set -Eeuo pipefail
-          test "$(docker image inspect --format '{{.Config.User}}' "maneflow-ci:${GITHUB_SHA}")" = "node"
-          test "$(docker image inspect --format '{{.Config.User}}' "maneflow-vision-ci:${GITHUB_SHA}")" = "maneflow"
+          test "$(docker image inspect --format '{{.Config.User}}' "maneflow-ci:${SOURCE_SHA}")" = "node"
+          test "$(docker image inspect --format '{{.Config.User}}' "maneflow-vision-ci:${SOURCE_SHA}")" = "maneflow"
       - name: Smoke-test packaged application source
         run: |
           set -Eeuo pipefail
-          docker run --rm --entrypoint node "maneflow-ci:${GITHUB_SHA}" --check server.js
-          docker run --rm --entrypoint node "maneflow-ci:${GITHUB_SHA}" --check src/router.js
+          docker run --rm --entrypoint node "maneflow-ci:${SOURCE_SHA}" --check server.js
+          docker run --rm --entrypoint node "maneflow-ci:${SOURCE_SHA}" --check src/router.js
       - name: Smoke-test packaged vision imports
         run: |
           set -Eeuo pipefail
@@ -103,15 +119,15 @@ jobs:
             -e MANEFLOW_GPU_ALLOW_CPU_FALLBACK=false \
             -e EMBEDDING_ENABLED=false \
             -e CARD_DETECTOR_BACKEND=classical \
-            "maneflow-vision-ci:${GITHUB_SHA}" \
+            "maneflow-vision-ci:${SOURCE_SHA}" \
             -c "from app.main import app; import maneflow_vision; assert app is not None; print('vision container import smoke passed')"
       - name: Record image identities and sizes
         run: |
           set -Eeuo pipefail
           docker image inspect \
             --format '{{json .RepoTags}} {{json .Config.Labels}} {{.Size}}' \
-            "maneflow-ci:${GITHUB_SHA}" \
-            "maneflow-vision-ci:${GITHUB_SHA}"
+            "maneflow-ci:${SOURCE_SHA}" \
+            "maneflow-vision-ci:${SOURCE_SHA}"
 
 
   native-client:
@@ -122,6 +138,11 @@ jobs:
         working-directory: apps/mobile-expo
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Verify exact source commit
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
@@ -143,8 +164,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ env.SOURCE_SHA }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify exact source commit
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
       - name: Fetch every branch for full-history scanning
         run: |
           set -Eeuo pipefail
