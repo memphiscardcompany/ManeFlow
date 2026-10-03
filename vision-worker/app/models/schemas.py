@@ -92,6 +92,24 @@ class CenteringAssessmentPayload(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class DetectedCardResult(BaseModel):
+    """Independent identity result for one card detected in a scene."""
+
+    detection_index: int = Field(ge=0)
+    bounding_box_px: tuple[int, int, int, int]
+    detection_confidence: float = Field(ge=0, le=1)
+    predicted_card: PredictedCard
+    identity_confidence: float = Field(ge=0, le=1)
+    variant_confidence: float = Field(default=0, ge=0, le=1)
+    identity_provider: str = "unconfigured"
+    image_processed_remotely: bool = False
+    needs_back_image: bool = True
+    needs_manual_confirmation: bool = True
+    barcode_values: list[str] = Field(default_factory=list)
+    visible_text: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class ScanResponse(PricingResult):
     contract_version: Literal["vision-extraction.v1"] = "vision-extraction.v1"
     scan_id: UUID
@@ -99,6 +117,7 @@ class ScanResponse(PricingResult):
     identity_confidence: float = Field(ge=0, le=1)
     variant_confidence: float = Field(default=0, ge=0, le=1)
     detected_object_count: int = 0
+    detected_cards: list[DetectedCardResult] = Field(default_factory=list)
     selected_detection_confidence: float = Field(default=0, ge=0, le=1)
     quality: ScanImageQuality | None = None
     identity_provider: str = "unconfigured"
