@@ -174,6 +174,10 @@ export function createAutomaticPricingRouter({
 
       if (scanConfirm && method === 'POST') {
         const body = await readJson(req, 100_000);
+        if (body.cardId && !matchCard(body.cardId)) {
+          json(res, 400, { error: 'UNKNOWN_CARD_ID', message: 'Select a catalog card before confirming this scan.' });
+          return true;
+        }
         const session = await confirmScanSession(
           store,
           actor,
