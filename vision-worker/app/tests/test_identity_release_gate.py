@@ -57,6 +57,44 @@ def test_duplicate_detection_and_missed_card_fail_even_when_counts_match():
     assert result["release_gate_passed"] is False
 
 
+
+def test_missed_exact_parallel_card_counts_against_end_to_end_accuracy():
+    manifest, predictions = fixture()
+    index = next(i for i, item in enumerate(manifest["items"]) if item["group"] == "parallel_variation")
+    manifest["items"][index]["regions"].append({
+        "id": "physical-2",
+        "bbox": [0.6, 0.1, 0.3, 0.4],
+        "catalog_card_id": "catalog-2",
+        "exact_visible": True,
+        "parallel": "Blue",
+    })
+    result = evaluate(manifest, predictions, source_commit=COMMIT, minimum_per_group=1)
+    assert result["metrics"]["exact_visible"] == 8
+    assert result["metrics"]["exact_correct"] == 7
+    assert result["metrics"]["exact_recall"] == 0.875
+    assert result["metrics"]["parallel_labeled"] == 2
+    assert result["metrics"]["parallel_correct"] == 1
+    assert result["metrics"]["parallel_accuracy"] == 0.5
+    assert result["release_gate_passed"] is False
+
+
+def test_confident_identity_on_false_region_counts_as_confident_wrong():
+    manifest, predictions = fixture()
+    index = next(i for i, item in enumerate(manifest["items"]) if item["group"] == "negative")
+    predictions["items"][index]["regions"].append({
+        "bbox": BOX,
+        "card_id": "hallucinated-card",
+        "needs_manual_confirmation": False,
+        "identity_confidence": 0.99,
+        "variant_confidence": 0.99,
+    })
+    result = evaluate(manifest, predictions, source_commit=COMMIT, minimum_per_group=1)
+    assert result["metrics"]["false_regions"] == 1
+    assert result["metrics"]["accepted_identities"] == 8
+    assert result["metrics"]["confident_wrong"] == 1
+    assert result["metrics"]["confident_wrong_rate"] == 0.125
+    assert result["release_gate_passed"] is False
+
 def test_confident_wrong_parallel_and_review_id_leak_fail_closed():
     manifest, predictions = fixture()
     index = next(i for i, item in enumerate(manifest["items"]) if item["group"] == "parallel_variation")
