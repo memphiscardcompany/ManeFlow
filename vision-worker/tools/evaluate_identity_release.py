@@ -120,14 +120,20 @@ def evaluate(manifest: dict, predictions: dict, *, source_commit: str, minimum_p
         for prediction in predicted:
             _box(prediction.get("bbox", prediction.get("bounding_box")))
         matches = _matching(labels, predicted)
+        matched_by_prediction = {prediction_index: label_index for label_index, prediction_index in matches}
         group_counts[group] += 1
         totals["expected_cards"] += len(labels)
         totals["predicted_regions"] += len(predicted)
         totals["localized_cards"] += len(matches)
         totals["false_regions"] += len(predicted) - len(matches)
-        for label_index, prediction_index in matches:
-            label = labels[label_index]
-            prediction = predicted[prediction_index]
+        totals["exact_visible"] += sum(bool(label.get("exact_visible")) for label in labels)
+        totals["parallel_labeled"] += sum(bool(label.get("parallel")) for label in labels)
+
+        # Score identity decisions across every predicted region so a confident
+        # identity on a false region cannot disappear from the false-confident
+        # metric. End-to-end exact and parallel denominators come from all
+        # independently labeled cards, including detector misses.
+        for prediction_index, prediction in enumerate(predicted):
             identity = prediction.get("identity") or prediction
             card = identity.get("card") or identity
             card_id = card.get("card_id") or identity.get("catalog_card_id")
@@ -137,19 +143,27 @@ def evaluate(manifest: dict, predictions: dict, *, source_commit: str, minimum_p
             accepted = bool(card_id and not review)
             if accepted:
                 totals["accepted_identities"] += 1
-            else:
+
+            label_index = matched_by_prediction.get(prediction_index)
+            if label_index is None:
+                if accepted:
+                    totals["confident_wrong"] += 1
+                continue
+
+            label = labels[label_index]
+            if not accepted:
                 totals["abstentions"] += 1
+                continue
+
             exact_visible = bool(label.get("exact_visible"))
-            if exact_visible:
-                totals["exact_visible"] += 1
-                if accepted and str(card_id) == str(label.get("catalog_card_id")):
-                    totals["exact_correct"] += 1
-            if accepted and (not exact_visible or str(card_id) != str(label.get("catalog_card_id"))):
+            exact_correct = exact_visible and str(card_id) == str(label.get("catalog_card_id"))
+            if exact_correct:
+                totals["exact_correct"] += 1
+            else:
                 totals["confident_wrong"] += 1
-            if label.get("parallel"):
-                totals["parallel_labeled"] += 1
-                if accepted and str(card.get("parallel") or "").casefold() == str(label["parallel"]).casefold():
-                    totals["parallel_correct"] += 1
+
+            if label.get("parallel") and str(card.get("parallel") or "").casefold() == str(label["parallel"]).casefold():
+                totals["parallel_correct"] += 1
         rows.append({"asset_id": asset_id, "group": group, "expected": len(labels),
                      "predicted": len(predicted), "localized": len(matches)})
     if set(by_id) != seen:
