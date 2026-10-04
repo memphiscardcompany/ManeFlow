@@ -1,4 +1,5 @@
 from io import BytesIO
+from uuid import UUID
 
 import cv2
 import numpy as np
@@ -94,3 +95,51 @@ def test_provider_confidence_without_canonical_card_id_cannot_trigger_pricing(mo
     assert priced_cards and all(card is None for card in priced_cards)
     assert payload["needs_manual_confirmation"] is True
     assert all(card["needs_manual_confirmation"] for card in payload["detected_cards"])
+
+def test_confident_provider_without_confirmed_boundary_cannot_trigger_pricing(monkeypatch):
+    priced_cards = []
+    canonical_id = UUID("11111111-1111-1111-1111-111111111111")
+
+    async def identify_candidate(*_args, **_kwargs):
+        return IdentityResult(
+            card=PredictedCard(
+                card_id=canonical_id,
+                player_name="Candidate",
+                year=2024,
+                brand="Topps",
+                set_name="Test Set",
+                card_number="1",
+                parallel="Gold",
+            ),
+            identity_confidence=0.99,
+            variant_confidence=0.99,
+            provider="test-provider",
+            processed_remotely=False,
+            is_trading_card=True,
+            needs_back_image=False,
+        )
+
+    async def no_enrichment(result):
+        return result
+
+    async def record_pricing(card):
+        priced_cards.append(card)
+        return calculate_pricing([]).to_dict()
+
+    monkeypatch.setattr("app.api.scan.detect_card_objects", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(identity_engine, "identify", identify_candidate)
+    monkeypatch.setattr(identity_engine, "_enrich_with_psa", no_enrichment)
+    monkeypatch.setattr(comps_service, "pricing_for_card", record_pricing)
+
+    response = client.post(
+        "/v1/scan",
+        files={"image": ("candidate.jpg", BytesIO(_single_card_jpeg()), "image/jpeg")},
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["detected_object_count"] == 0
+    assert payload["predicted_card"]["card_id"] == str(canonical_id)
+    assert priced_cards == [None]
+    assert payload["needs_manual_confirmation"] is True
+    assert payload["pricing_status"] == "price_unverifiable"
+
