@@ -165,12 +165,15 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
 
     # A provider extraction is a candidate, not a canonical priced catalog row.
     # Only a resolved, sufficiently supported identity may enter pricing.
+    primary_detection_confirmed = bool(
+        ordered_detections and not ordered_detections[0].fallback_whole_image
+    )
     pricing_eligible = (
-        identity.card.card_id is not None
+        primary_detection_confirmed
+        and identity.card.card_id is not None
         and identity.identity_confidence >= 0.92
         and identity.variant_confidence >= 0.85
         and not identity.needs_back_image
-        and not (ordered_detections and ordered_detections[0].fallback_whole_image)
     )
     pricing = await comps_service.pricing_for_card(identity.card if pricing_eligible else None)
     needs_manual_confirmation = (
