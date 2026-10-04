@@ -217,3 +217,16 @@ test('one user cannot confirm or price another user scan session', async () => {
   assert.equal(res.statusCode, 404);
   assert.equal(calls.length, 0);
 });
+
+test('review-required scan cannot price a suggested card without an explicit catalog selection', async () => {
+  const { router, calls } = setup();
+  const missing = response();
+  await router(request({ token: 'token-a', method: 'POST', url: '/api/scan-sessions/scan-a/confirm', body: {} }), missing);
+  assert.equal(missing.statusCode, 422);
+  assert.equal(parsed(missing).error, 'EXACT_CARD_SELECTION_REQUIRED');
+  const unknown = response();
+  await router(request({ token: 'token-a', method: 'POST', url: '/api/scan-sessions/scan-a/confirm', body: { cardId: 'invented-card' } }), unknown);
+  assert.equal(unknown.statusCode, 400);
+  assert.equal(parsed(unknown).error, 'UNKNOWN_CARD_ID');
+  assert.equal(calls.length, 0);
+});

@@ -15,6 +15,7 @@ let directory;
 let cards;
 let sales;
 let store;
+let config;
 
 async function request(pathname, options = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, options);
@@ -42,7 +43,7 @@ before(async () => {
   cards = JSON.parse(await fs.readFile(new URL('../src/data/cards.json', import.meta.url), 'utf8'));
   sales = JSON.parse(await fs.readFile(new URL('../src/data/sales.json', import.meta.url), 'utf8'));
   directory = await fs.mkdtemp(path.join(os.tmpdir(), 'maneflow-api-'));
-  const config = {
+  config = {
     appName: 'ManeFlow', version: '1.2.0', releaseChannel: 'test',
     port: 0, host: '127.0.0.1', publicBaseUrl: 'http://127.0.0.1',
     apiToken: '', adminToken: 'admin-test-token', bootstrapAdminEmail: '',
@@ -91,6 +92,38 @@ test('front/back manual scan records a candidate match', async () => {
   assert.equal(scan.response.status, 200);
   assert.equal(scan.body.matches[0].id, cards[0].id);
   assert.ok(scan.body.scanId);
+});
+
+test('direct scan uses the shared pipeline and preserves separate review regions', async () => {
+  const regions = [
+    { id: 'region-1', bbox: [0.05, 0.1, 0.4, 0.8], cardId: null, needsConfirmation: true },
+    { id: 'region-2', bbox: [0.55, 0.1, 0.4, 0.8], cardId: null, needsConfirmation: true },
+  ];
+  const calls = [];
+  const pipeline = async (input) => {
+    calls.push(input);
+    return { exact: false, matches: [cards[0]], sceneAnalysis: { regions }, needsConfirmation: true };
+  };
+  const directServer = http.createServer(createRouter({
+    config, cards, sales, providers: createProviderRegistry(config, sales), store,
+    cache: new TtlCache(), scanPipeline: pipeline,
+  }));
+  await new Promise((resolve) => directServer.listen(0, '127.0.0.1', resolve));
+  try {
+    const response = await fetch(`http://127.0.0.1:${directServer.address().port}/api/scan`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ manualText: 'two cards' }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0], { body: { manualText: 'two cards' }, ownerUserId: null });
+    assert.deepEqual(body.sceneAnalysis.regions, regions);
+    assert.equal(body.marketContext.available, false);
+    assert.equal(body.marketContext.reason, 'identity_unconfirmed');
+  } finally {
+    await new Promise((resolve) => directServer.close(resolve));
+  }
 });
 
 test('collection logging merges duplicate matched cards and feeds portfolio value', async () => {

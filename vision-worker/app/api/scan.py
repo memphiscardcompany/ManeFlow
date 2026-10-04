@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.db.supabase import db
 from app.models.schemas import (
     CenteringAssessmentPayload,
+    DetectedCardResult,
     ScanImageQuality,
     ScanResponse,
     SurfaceAnalysisPayload,
@@ -55,13 +56,20 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
     identity_payload = image_bytes
     identity_media_type = image.content_type
     barcode_source = decoded
+    detected_cards: list[DetectedCardResult] = []
+    primary_identity = None
 
-    if detections:
-        # Detector sorts larger outer card/slab boundaries ahead of nested artwork.
-        selected = max(
-            detections,
-            key=lambda item: (item.confidence * max(item.area_fraction, 0.01), item.confidence),
-        )
+    # A scene is a set of independent cards, not one image-level identity.
+    # Put the strongest card first for backwards-compatible top-level fields,
+    # then identify every remaining crop independently.
+    ordered_detections = sorted(
+        detections,
+        key=lambda item: (item.confidence * max(item.area_fraction, 0.01), item.confidence),
+        reverse=True,
+    )
+
+    if ordered_detections:
+        selected = ordered_detections[0]
         selected_confidence = selected.confidence
         barcode_source = selected.crop
         ok, encoded = cv2.imencode(
@@ -72,13 +80,53 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
             identity_media_type = "image/jpeg"
         if selected.fallback_whole_image:
             warnings.append("Whole-image boundary fallback used; confirm the crop.")
-        if len(detections) > 1:
-            warnings.append(
-                f"{len(detections)} card-shaped objects were detected; single-scan mode analyzed the strongest candidate."
-            )
     else:
         warnings.append(
             "No card boundary was detected; the full image was passed only to a configured identity provider."
+        )
+
+    # Identify every detected card. The top-level response below remains the
+    # strongest card so existing single-card clients keep working.
+    for detection_index, detection in enumerate(ordered_detections):
+        ok, encoded = cv2.imencode(
+            ".jpg", detection.crop, [int(cv2.IMWRITE_JPEG_QUALITY), 92]
+        )
+        crop_bytes = encoded.tobytes() if ok else image_bytes
+        crop_media_type = "image/jpeg" if ok else image.content_type
+        crop_barcodes = decode_barcodes(detection.crop)
+        crop_identity = await identity_engine.identify(
+            crop_bytes,
+            image.filename,
+            media_type=crop_media_type,
+            barcode_values=crop_barcodes,
+        )
+        crop_identity = await identity_engine._enrich_with_psa(crop_identity)
+        if detection_index == 0:
+            primary_identity = crop_identity
+        crop_manual = (
+            detection.fallback_whole_image
+            or crop_identity.card.card_id is None
+            or crop_identity.identity_confidence < 0.92
+            or crop_identity.variant_confidence < 0.85
+            or crop_identity.needs_back_image
+        )
+        detected_cards.append(
+            DetectedCardResult(
+                detection_index=detection_index,
+                bounding_box_px=detection.bounding_box_px,
+                detection_confidence=detection.confidence,
+                fallback_whole_image=detection.fallback_whole_image,
+                predicted_card=crop_identity.card,
+                identity_confidence=crop_identity.identity_confidence,
+                variant_confidence=crop_identity.variant_confidence,
+                identity_provider=crop_identity.provider,
+                image_processed_remotely=crop_identity.processed_remotely,
+                needs_back_image=crop_identity.needs_back_image,
+                needs_manual_confirmation=crop_manual,
+                barcode_values=crop_identity.barcode_values,
+                visible_text=crop_identity.visible_text,
+                warnings=crop_identity.warnings,
+            )
         )
 
     surface_analysis = None
@@ -101,19 +149,35 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
         except EmbeddingEngineError as exc:
             warnings.append(f"Local embedding extraction unavailable: {exc}")
 
-    barcode_values = decode_barcodes(barcode_source)
-    identity = await identity_engine.identify(
-        identity_payload,
-        image.filename,
-        media_type=identity_media_type,
-        barcode_values=barcode_values,
-    )
-    identity = await identity_engine._enrich_with_psa(identity)
+    if detected_cards and primary_identity is not None:
+        barcode_values = detected_cards[0].barcode_values
+        identity = primary_identity
+    else:
+        barcode_values = decode_barcodes(barcode_source)
+        identity = await identity_engine.identify(
+            identity_payload,
+            image.filename,
+            media_type=identity_media_type,
+            barcode_values=barcode_values,
+        )
+        identity = await identity_engine._enrich_with_psa(identity)
     warnings.extend(identity.warnings)
 
-    pricing = await comps_service.pricing_for_card(identity.card)
+    # A provider extraction is a candidate, not a canonical priced catalog row.
+    # Only a resolved, sufficiently supported identity may enter pricing.
+    primary_detection_confirmed = bool(
+        ordered_detections and not ordered_detections[0].fallback_whole_image
+    )
+    pricing_eligible = (
+        primary_detection_confirmed
+        and identity.card.card_id is not None
+        and identity.identity_confidence >= 0.92
+        and identity.variant_confidence >= 0.85
+        and not identity.needs_back_image
+    )
+    pricing = await comps_service.pricing_for_card(identity.card if pricing_eligible else None)
     needs_manual_confirmation = (
-        identity.identity_confidence < 0.92
+        not pricing_eligible
         or identity.variant_confidence < 0.85
         or identity.needs_back_image
         or pricing["pricing_status"] != "verified"
@@ -163,6 +227,7 @@ async def scan_card(image: UploadFile = File(...)) -> ScanResponse:
         identity_confidence=identity.identity_confidence,
         variant_confidence=identity.variant_confidence,
         detected_object_count=len(detections),
+        detected_cards=detected_cards,
         selected_detection_confidence=selected_confidence,
         quality=ScanImageQuality(**quality.to_dict()),
         identity_provider=identity.provider,

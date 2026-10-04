@@ -186,6 +186,7 @@ function fallbackRegion({ body = {}, vision = null, scene = null } = {}) {
     warnings: safeArray(source.warnings),
     uncertaintyReasons: safeArray(source.uncertaintyReasons),
     needsBackImage: source.needsBackImage ?? !has(body.backDataUrl),
+    needsManualConfirmation: Boolean(source.needsManualConfirmation),
     needsCertCloseup: source.needsCertCloseup ?? null,
     overallConfidence: source.confidence ?? source.overallConfidence ?? null,
     provider: clean(source.provider || source.evidenceProvider, 160) || null,
@@ -387,7 +388,7 @@ function summarize(items = [], scene = {}) {
   return {
     detectedCards: items.length,
     matchedCards: items.filter((item) => item.matches.length).length,
-    needsConfirmation: items.filter((item) => item.scanConfidence.needsManualConfirmation).length,
+    needsConfirmation: items.filter((item) => item.requiresManualConfirmation).length,
     highValueConfirmation: items.filter((item) => item.scanConfidence.manualConfirmationReasons?.some((reason) => /high-value/i.test(reason))).length,
     averageScanConfidence: scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0,
     pathCounts,
@@ -436,7 +437,6 @@ export function recognizeCardScene({
       result: { ...result, exact: candidateExact, matches: learnedMatches, gradedCert: regionCert },
       matches: learnedMatches,
     });
-    const exact = Boolean(result.exact && candidateExact && !scanConfidence.needsManualConfirmation);
     const path = chooseRecognitionPath({ scene, region, matches: learnedMatches, confidence: scanConfidence });
     const regionPriors = safeArray(candidatePriors).filter((prior) => !prior?.regionId || prior.regionId === region.regionId);
     const evidence = buildRecognitionEvidenceLedger({
@@ -452,6 +452,12 @@ export function recognizeCardScene({
       scopeResult: candidateUniverse,
       calibration,
     });
+    const requiresManualConfirmation = Boolean(
+      scanConfidence.needsManualConfirmation
+      || region.needsManualConfirmation
+      || !selectiveDecision.autoAccepted
+    );
+    const exact = Boolean(result.exact && candidateExact && !requiresManualConfirmation);
     return {
       regionId: region.regionId || `region_${index + 1}`,
       index,
@@ -482,7 +488,7 @@ export function recognizeCardScene({
       selectiveDecision,
       candidateScope: selectiveDecision.candidateScope,
       explanation: buildRegionExplanation({ scene, region, result, confidence: scanConfidence, path }),
-      requiresManualConfirmation: scanConfidence.needsManualConfirmation,
+      requiresManualConfirmation,
       warnings: [...new Set([...safeArray(region.warnings), ...safeArray(scanConfidence.warnings)])],
     };
   });
@@ -506,7 +512,7 @@ export function recognizeCardScene({
     },
     message: !primary
       ? 'No individual physical card region was confirmed. No card record was created.'
-      : primary.requiresManualConfirmation
+      : items.some((item) => item.requiresManualConfirmation)
         ? 'ManeFlow found likely card identities, but one or more regions need confirmation before pricing or inventory action.'
         : 'ManeFlow recognized the visible card region(s). Confirm condition before transacting.',
   };

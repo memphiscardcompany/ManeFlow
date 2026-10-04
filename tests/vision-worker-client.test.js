@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import test from 'node:test';
-import { VisionWorkerClient, workerCardToLegacyVision } from '../src/services/vision-worker-client.js';
+import { VisionWorkerClient, workerCardToLegacyVision, workerScanToSceneAnalysis } from '../src/services/vision-worker-client.js';
+import { recognizeCardScene } from '../src/services/recognition-engine.js';
 import { parseRetryAfterMs } from '../src/services/vision-retry-policy.js';
 
 async function withServer(handler, run) {
@@ -170,6 +171,49 @@ test('worker card extraction maps into the legacy ManeFlow evidence contract', (
   assert.equal(result.surfaceAnalysis.refractor_confidence, 0.76);
   assert.equal(result.centeringAssessment.centering_lr, '55/45');
   assert.match(result.warnings[0], /parallel/);
+});
+
+test('one worker frame reaches catalog recognition as independent card regions', () => {
+  const workerScan = {
+    quality: { width: 1000, height: 800 },
+    detected_cards: [
+      { detection_index: 0, bounding_box_px: [50, 80, 300, 500], detection_confidence: 0.95,
+        predicted_card: { player_name: 'Player Alpha', year: 2024, brand: 'Topps', set_name: 'Test Set', card_number: '1' },
+        identity_confidence: 0.93, variant_confidence: 0, needs_manual_confirmation: true, visible_text: ['Player Alpha'] },
+      { detection_index: 1, bounding_box_px: [600, 90, 300, 500], detection_confidence: 0.92,
+        predicted_card: { player_name: 'Player Beta', year: 2023, brand: 'Panini', set_name: 'Other Set', card_number: '2' },
+        identity_confidence: 0.94, variant_confidence: 0, needs_manual_confirmation: true, visible_text: ['Player Beta'] },
+    ],
+  };
+  const sceneAnalysis = workerScanToSceneAnalysis(workerScan);
+  const recognition = recognizeCardScene({
+    cards: [
+      { id: 'alpha', player: 'Player Alpha', year: 2024, brand: 'Topps', set: 'Test Set', cardNumber: '1' },
+      { id: 'beta', player: 'Player Beta', year: 2023, brand: 'Panini', set: 'Other Set', cardNumber: '2' },
+    ],
+    body: { frontDataUrl: 'data:image/jpeg;base64,AAAA', ocrText: 'Player Alpha' },
+    sceneAnalysis,
+  });
+  assert.equal(recognition.summary.detectedCards, 2);
+  assert.deepEqual(recognition.items.map((item) => item.facts.player), ['Player Alpha', 'Player Beta']);
+  assert.deepEqual(recognition.items.map((item) => item.boundingBox.x), [0.05, 0.6]);
+  assert.ok(recognition.items.every((item) => item.requiresManualConfirmation && !item.exact));
+  assert.equal(recognition.items[1].facts.visibleText.includes('Player Alpha'), false);
+});
+
+test('whole-image fallback cannot become a confirmed physical card region', () => {
+  const sceneAnalysis = workerScanToSceneAnalysis({
+    quality: { width: 100, height: 100 },
+    detected_cards: [{ detection_index: 0, bounding_box_px: [0, 0, 100, 100], fallback_whole_image: true,
+      predicted_card: { player_name: 'Unverified' }, identity_confidence: 0.99 }],
+  });
+  const recognition = recognizeCardScene({
+    cards: [{ id: 'unverified', player: 'Unverified' }],
+    body: { frontDataUrl: 'data:image/jpeg;base64,AAAA' },
+    sceneAnalysis,
+  });
+  assert.equal(recognition.summary.detectedCards, 0);
+  assert.equal(recognition.primary, null);
 });
 
 test('vision worker client lists and curates contributed examples', async () => {

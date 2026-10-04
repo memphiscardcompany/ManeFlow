@@ -4,7 +4,7 @@ import { evaluateScanConfidence } from './scan-confidence.js';
 import { createScanSession } from './scan-session.js';
 import { recognizeCardScene } from './recognition-engine.js';
 import { analyzeCardScene } from './vision.js';
-import { VisionWorkerClient, workerCardToLegacyVision } from './vision-worker-client.js';
+import { VisionWorkerClient, workerCardToLegacyVision, workerScanToSceneAnalysis } from './vision-worker-client.js';
 import { analyzeGradedCert } from './graded-cert.js';
 import { canAccessOrganization } from './shop-permissions.js';
 import { recordUsage } from './usage-metering.js';
@@ -30,6 +30,7 @@ export function createScanPipeline({
   const visionWorker = new VisionWorkerClient({
     baseUrl: config.visionWorkerUrl,
     timeoutMs: config.visionWorkerTimeoutMs,
+    serviceToken: config.serviceToken,
   });
   const cardImageOptions = imageConfig(config);
 
@@ -196,7 +197,12 @@ export function createScanPipeline({
       };
     }
 
-    if ((frontDataUrl || certDataUrl) && config.openaiApiKey && config.openaiVisionModel) {
+    if (workerScan) {
+      sceneAnalysis = workerScanToSceneAnalysis(workerScan);
+      vision = sceneAnalysis?.primaryCard || vision;
+    }
+
+    if (!sceneAnalysis && (frontDataUrl || certDataUrl) && config.openaiApiKey && config.openaiVisionModel) {
       sceneAnalysis = await analyzeCardScene({
         frontDataUrl: frontDataUrl || certDataUrl,
         backDataUrl,
@@ -210,6 +216,10 @@ export function createScanPipeline({
     if (!vision && workerScan && Number(workerScan.identity_confidence || 0) > 0) {
       vision = workerCardToLegacyVision(workerScan);
     }
+    const remoteVisionUsed = Boolean(
+      (sceneAnalysis && sceneAnalysis.scene?.processingStrategy !== 'local_vision_worker_per_card')
+      || workerScan?.image_processed_remotely,
+    );
 
     const gradedCert = await analyzeGradedCert({ body, vision }, { state: store.state, actor });
     const scanBody = { ...body, gradedCert };
@@ -230,11 +240,12 @@ export function createScanPipeline({
       result: { gradedCert },
       matches,
     });
+    const needsConfirmation = primary.requiresManualConfirmation ?? scanConfidence.needsManualConfirmation;
     const result = {
       mode: primary.mode || (sceneAnalysis ? 'vision_scene_catalog_match' : 'manual_text_match'),
       query: primary.query || '',
-      exact: Boolean(primary.exact && !scanConfidence.needsManualConfirmation),
-      needsConfirmation: scanConfidence.needsManualConfirmation,
+      exact: Boolean(primary.exact && !needsConfirmation),
+      needsConfirmation,
       message: recognition.message,
       matches,
     };
@@ -246,13 +257,13 @@ export function createScanPipeline({
         mode: result.mode,
         query: result.query,
         matchIds: matches.map((card) => card.id),
-        imageProcessedRemotely: Boolean(sceneAnalysis),
+        imageProcessedRemotely: remoteVisionUsed,
         frontBack: Boolean(backDataUrl),
         warnings: [...(vision?.warnings || []), ...scanConfidence.warnings],
       });
       await recordUsage(store, actor, 'scan', 1, {
         mode: result.mode,
-        remoteVision: Boolean(sceneAnalysis),
+        remoteVision: remoteVisionUsed,
         confidence: scanConfidence.scanConfidenceScore,
         detectedCards: recognition.summary.detectedCards,
       });
@@ -264,7 +275,7 @@ export function createScanPipeline({
       );
       await recordUsage(store, actor, 'scan_session', 1, {
         scanSessionId: scanSession.id,
-        needsManualConfirmation: scanConfidence.needsManualConfirmation,
+        needsManualConfirmation: needsConfirmation,
       });
     }
 
@@ -282,7 +293,7 @@ export function createScanPipeline({
       scanConfidence,
       scanId: scan?.id || null,
       scanSessionId: scanSession?.id || null,
-      imageProcessedRemotely: Boolean(sceneAnalysis || workerScan?.image_processed_remotely),
+      imageProcessedRemotely: remoteVisionUsed,
       visionWorkerUsed: Boolean(workerScan),
       marketMode: marketMode(config, (store.state.customSales || []).length),
       message: scanConfidence.needsManualConfirmation

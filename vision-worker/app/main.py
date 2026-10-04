@@ -7,6 +7,7 @@ from app.api.corrections import router as corrections_router
 from app.api.desktop import router as desktop_router
 from app.api.lots import router as lots_router
 from app.api.intake import router as intake_router
+from app.api.live import router as live_router
 from app.api.scan import router as scan_router
 from app.core.config import settings
 from app.core.security import bearer_token_matches
@@ -58,6 +59,7 @@ app.include_router(corrections_router, prefix="/v1")
 app.include_router(lots_router, prefix="/v1")
 app.include_router(desktop_router, prefix="/v1")
 app.include_router(intake_router, prefix="/v1")
+app.include_router(live_router, prefix="/v1")
 app.mount("/local-images", StaticFiles(directory=str(settings.images_dir)), name="local-images")
 
 

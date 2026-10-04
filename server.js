@@ -98,9 +98,9 @@ const ocrService = new LightOcrService({
   timeoutMs: config.localOcrTimeoutMs,
 });
 const releaseProvenanceRouter = createReleaseProvenanceRouter({ config, env: process.env });
-const coreRouter = createRouter({ config, cards, sales, providers, store, cache, runtimeValidation, storage, ocrService, databaseRuntime });
-const metaOwnerRouter = createMetaOwnerRouter({ config, store, databaseRuntime });
 const scanPipeline = createScanPipeline({ config, cards, sales, store, cache, ocrService, databaseRuntime });
+const coreRouter = createRouter({ config, cards, sales, providers, store, cache, runtimeValidation, storage, ocrService, databaseRuntime, scanPipeline });
+const metaOwnerRouter = createMetaOwnerRouter({ config, store, databaseRuntime });
 const scanJobRuntime = await createDurableScanJobRouter({ config, store, processor: scanPipeline });
 const automaticPricingEngine = createAutomaticPricingEngine({
   config,

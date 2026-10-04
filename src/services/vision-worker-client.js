@@ -109,6 +109,7 @@ export class VisionWorkerClient {
     sleepFn = sleep,
     nowFn = Date.now,
     idempotencySecret = randomBytes(32),
+    serviceToken = '',
   } = {}) {
     this.baseUrl = cleanBaseUrl(baseUrl);
     this.timeoutMs = timeoutMs;
@@ -117,6 +118,7 @@ export class VisionWorkerClient {
     this.retryMaxMs = Math.max(this.retryBaseMs, Math.floor(Number(retryMaxMs) || 15_000));
     this.sleepFn = sleepFn;
     this.nowFn = nowFn;
+    this.serviceToken = String(serviceToken || '').trim();
     this.cooldownUntil = 0;
     this.inflightScans = new Map();
     const suppliedSecret = Buffer.isBuffer(idempotencySecret)
@@ -145,6 +147,10 @@ export class VisionWorkerClient {
       await this.waitForSharedCooldown();
       const requestOptions = {
         ...fetchOptions,
+        headers: {
+          ...(fetchOptions.headers || {}),
+          ...(this.serviceToken ? { authorization: `Bearer ${this.serviceToken}` } : {}),
+        },
         signal: AbortSignal.timeout(timeoutMs),
       };
       if (bodyFactory) requestOptions.body = bodyFactory();
@@ -184,6 +190,42 @@ export class VisionWorkerClient {
 
   health() { return this.request('/health', { timeoutMs: 5_000 }); }
   readiness() { return this.request('/readiness', { timeoutMs: 8_000 }); }
+
+  createLiveSession(options = {}) {
+    return this.request('/v1/live/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(options),
+      retryable: false,
+    });
+  }
+
+  getLiveSession(sessionId) {
+    return this.request(`/v1/live/sessions/${encodeURIComponent(sessionId)}`);
+  }
+
+  closeLiveSession(sessionId) {
+    return this.request(`/v1/live/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+  }
+
+  processLiveFrame(sessionId, dataUrl) {
+    const { mediaType, bytes } = parseDataUrl(dataUrl);
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(mediaType)) {
+      const error = new Error('Unsupported live frame type.');
+      error.status = 415;
+      throw error;
+    }
+    if (bytes.length > 1_500_000) {
+      const error = new Error('Live frame exceeds the 1.5 MB limit.');
+      error.status = 413;
+      throw error;
+    }
+    const form = new FormData();
+    form.append('frame', new Blob([bytes], { type: mediaType }), 'live-frame.jpg');
+    return this.request(`/v1/live/sessions/${encodeURIComponent(sessionId)}/frames`, {
+      method: 'POST', body: form, retryable: false,
+    });
+  }
 
   async scanDataUrl(dataUrl, {
     filename = 'card-scan.jpg',
@@ -366,5 +408,73 @@ export function workerCardToLegacyVision(workerScan) {
     imageProcessedRemotely: Boolean(workerScan?.image_processed_remotely),
     surfaceAnalysis,
     centeringAssessment,
+  };
+}
+
+// The worker owns physical localization. Keep each crop's evidence separate when
+// handing a scene to the catalog matcher; image-level text must not leak into
+// another card's identity.
+export function workerScanToSceneAnalysis(workerScan) {
+  const detections = Array.isArray(workerScan?.detected_cards) ? workerScan.detected_cards : [];
+  if (!detections.length) return null;
+  const imageWidth = Number(workerScan?.quality?.width);
+  const imageHeight = Number(workerScan?.quality?.height);
+  const regions = detections.map((detection, index) => {
+    const [x, y, width, height] = Array.isArray(detection?.bounding_box_px)
+      ? detection.bounding_box_px.map(Number) : [];
+    const validBox = Number.isFinite(imageWidth) && imageWidth > 0
+      && Number.isFinite(imageHeight) && imageHeight > 0
+      && [x, y, width, height].every(Number.isFinite)
+      && width > 0 && height > 0;
+    const card = detection?.predicted_card || {};
+    const confidence = Number(detection?.identity_confidence || 0);
+    const variantConfidence = Number(detection?.variant_confidence || 0);
+    const facts = {
+      player: card.player_name || null,
+      year: card.year ?? null,
+      brand: card.brand || null,
+      set: card.set_name || null,
+      subset: card.insert_name || null,
+      cardNumber: card.card_number || null,
+      parallel: card.parallel || null,
+      serialNumber: card.serial_number || null,
+      grader: card.grader || null,
+      grade: card.grade || null,
+      certNumber: card.cert_number || null,
+      visibleText: Array.isArray(detection?.visible_text) ? detection.visible_text : [],
+    };
+    const fieldConfidence = Object.fromEntries(Object.entries(facts)
+      .filter(([key, value]) => key !== 'visibleText' && value !== null && value !== '')
+      .map(([key]) => [key, key === 'parallel' ? variantConfidence : confidence]));
+    return {
+      regionId: `worker_region_${Number.isInteger(detection?.detection_index) ? detection.detection_index + 1 : index + 1}`,
+      boundingBox: validBox ? {
+        x: Math.max(0, x / imageWidth),
+        y: Math.max(0, y / imageHeight),
+        width: Math.min(1, width / imageWidth),
+        height: Math.min(1, height / imageHeight),
+      } : null,
+      physicalCardDetected: validBox && !detection?.fallback_whole_image,
+      isCard: validBox && !detection?.fallback_whole_image,
+      facts,
+      fieldConfidence,
+      confidence,
+      provider: detection?.identity_provider || 'maneflow_vision_worker',
+      evidenceSource: 'local_vision_worker_crop',
+      needsBackImage: Boolean(detection?.needs_back_image),
+      needsManualConfirmation: Boolean(detection?.needs_manual_confirmation || detection?.fallback_whole_image),
+      warnings: [...(Array.isArray(detection?.warnings) ? detection.warnings : []),
+        ...(!validBox ? ['Detector bounding box is invalid; this region cannot be accepted.'] : [])],
+    };
+  });
+  return {
+    scene: {
+      type: regions.length > 1 ? 'multi_card_table' : 'single_card',
+      cardCount: regions.length,
+      processingStrategy: 'local_vision_worker_per_card',
+      warnings: workerScan?.warnings || [],
+    },
+    detectedCards: regions,
+    primaryCard: regions[0] || null,
   };
 }

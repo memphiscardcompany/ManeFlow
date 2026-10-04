@@ -4,10 +4,15 @@ import { evaluateScanConfidence } from './scan-confidence.js';
 export async function createScanSession(store, actor, input = {}, context = {}) {
   if (!actor?.userId || actor.readOnly) throw Object.assign(new Error('Authentication required.'), { status: 401 });
   const confidence = evaluateScanConfidence(input);
+  const needsManualConfirmation = Boolean(
+    confidence.needsManualConfirmation
+    || input.result?.needsConfirmation
+    || input.recognition?.primary?.requiresManualConfirmation,
+  );
   const now = new Date().toISOString();
   const session = {
     id: makeId('scan_session'), userId: actor.userId, organizationId: input.organizationId || null,
-    status: confidence.needsManualConfirmation ? 'needs_confirmation' : 'matched',
+    status: needsManualConfirmation ? 'needs_confirmation' : 'matched',
     recognitionVersion: input.recognition?.version || null,
     sceneType: input.recognition?.scene?.type || null,
     detectedCardCount: input.recognition?.summary?.detectedCards || null,
@@ -15,7 +20,8 @@ export async function createScanSession(store, actor, input = {}, context = {}) 
     frontStatus: input.body?.frontDataUrl || input.frontDataUrl ? 'present' : 'missing',
     backStatus: input.body?.backDataUrl || input.backDataUrl ? 'present' : 'missing',
     certStatus: input.body?.certDataUrl || input.certDataUrl ? 'present' : 'optional_missing',
-    selectedCardId: confidence.bestMatchId, matchIds: (input.matches || []).map((card) => card.id).slice(0, 10), confidence,
+    selectedCardId: needsManualConfirmation ? null : confidence.bestMatchId,
+    matchIds: (input.matches || []).map((card) => card.id).slice(0, 10), confidence,
     topCandidates: confidence.topCandidates || [],
     regions: (input.recognition?.items || []).map((item) => ({
       regionId: item.regionId,
@@ -49,6 +55,12 @@ export async function createScanSession(store, actor, input = {}, context = {}) 
 export async function confirmScanSession(store, actor, sessionId, input = {}) {
   const session = (store.state.scanSessions || []).find((entry) => entry.id === sessionId && entry.userId === actor?.userId);
   if (!session) return null;
+  if (!input.rejected && session.status === 'needs_confirmation' && !input.cardId) {
+    throw Object.assign(new Error('Select the exact catalog card before confirming this scan.'), {
+      status: 422,
+      code: 'EXACT_CARD_SELECTION_REQUIRED',
+    });
+  }
   session.status = input.rejected ? 'rejected' : 'confirmed';
   const previousCardId = session.selectedCardId || null;
   if (input.cardId) session.selectedCardId = input.cardId;

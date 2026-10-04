@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calculateValuation } from './services/valuation.js';
@@ -26,8 +27,8 @@ import {
 import { addShopInventoryItem, listShopInventory, shopDashboard, updateShopInventoryItem } from './services/shop-inventory.js';
 import { canAccessOrganization } from './services/shop-permissions.js';
 import { evaluateScanConfidence } from './services/scan-confidence.js';
-import { createScanSession, confirmScanSession, scanQualityAnalytics } from './services/scan-session.js';
-import { recognizeCardScene } from './services/recognition-engine.js';
+import { confirmScanSession, scanQualityAnalytics } from './services/scan-session.js';
+import { createScanPipeline } from './services/scan-pipeline.js';
 import { parseRecognitionBenchmarkInput, runRecognitionBenchmark } from './services/recognition-benchmark.js';
 import { buildDealerDecision } from './services/dealer-decision.js';
 import { createIntakeBatch, addIntakeBatchItem, updateIntakeBatchStatus, generateOfferSheet } from './services/intake-batches.js';
@@ -36,8 +37,8 @@ import { parseCsv } from './services/csv.js';
 import { buildPricingImportTemplate, ingestPricingData, rollbackPricingBatch, summarizePricingData, validatePricingRows, normalizeCatalogRows } from './services/pricing-data.js';
 import { importSportsChecklistCsv, importSportsChecklistJson } from './services/sports-catalog-importer.js';
 import { importTcgCatalog } from './services/tcg-catalog-importer.js';
-import { analyzeCardImages, analyzeCardScene } from './services/vision.js';
-import { VisionWorkerClient, workerCardToLegacyVision } from './services/vision-worker-client.js';
+import { analyzeCardImages } from './services/vision.js';
+import { VisionWorkerClient } from './services/vision-worker-client.js';
 import { analyzeGradedCert } from './services/graded-cert.js';
 import { buildCollectionSurvey, listCollectionSurveys, saveCollectionSurvey } from './services/collection-survey.js';
 import { imageCoverageReport, ingestImageEnrichment, rollbackImageEnrichmentBatch } from './services/image-enrichment.js';
@@ -167,7 +168,7 @@ function marketMode(config, customSalesCount) {
   return 'production';
 }
 
-export function createRouter({ config, cards: bundledCards, sales: bundledSales, providers, store, cache, runtimeValidation = null, storage = null, ocrService = null, databaseRuntime = null }) {
+export function createRouter({ config, cards: bundledCards, sales: bundledSales, providers, store, cache, runtimeValidation = null, storage = null, ocrService = null, databaseRuntime = null, scanPipeline: providedScanPipeline = null }) {
   ensureSourcePolicies(store.state);
   const cardImageOptions = imageConfig(config);
   const generalLimiter = new RateLimiter({ windowMs: 60_000, max: 240 });
@@ -175,8 +176,55 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
   const authLimiter = new RateLimiter({ windowMs: 15 * 60_000, max: 30 });
   const authAccountLimiter = new RateLimiter({ windowMs: 15 * 60_000, max: 10 });
   const scanLimiter = new RateLimiter({ windowMs: 60_000, max: 30 });
+  const liveFrameLimiter = new RateLimiter({ windowMs: 60_000, max: 120 });
   const requestIp = (req) => clientIp(req, config);
-  const visionWorker = new VisionWorkerClient({ baseUrl: config.visionWorkerUrl, timeoutMs: config.visionWorkerTimeoutMs });
+  const visionWorker = new VisionWorkerClient({ baseUrl: config.visionWorkerUrl, timeoutMs: config.visionWorkerTimeoutMs, serviceToken: config.serviceToken });
+  const scanPipeline = providedScanPipeline || createScanPipeline({ config, cards: bundledCards, sales: bundledSales, store, cache, ocrService, databaseRuntime });
+  const liveSessionTtlMs = 30 * 60_000;
+  const liveSessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const maxLiveFrameBytes = config.maxLiveFrameBytes || 1_500_000;
+  const liveSessionOwners = new Map((store.state.liveSessions || [])
+    .filter((entry) => entry?.sessionId && entry.expiresAt > Date.now())
+    .map((entry) => [entry.sessionId, entry]));
+
+  async function persistLiveOwners() {
+    store.state.liveSessions = [...liveSessionOwners.values()].filter((entry) => !entry.pending && entry.expiresAt > Date.now());
+    await store.persist();
+  }
+
+  function pruneLiveOwners() {
+    let changed = false;
+    for (const [id, owner] of liveSessionOwners) if (owner.expiresAt <= Date.now()) {
+      liveSessionOwners.delete(id);
+      if (!owner.pending) void visionWorker.closeLiveSession(id).catch(() => {});
+      changed = true;
+    }
+    if (changed) void persistLiveOwners().catch(() => {});
+  }
+
+  function liveWorkerFailure(res, error, sessionId = null) {
+    const status = Number(error?.status);
+    if (status === 404 && sessionId) {
+      liveSessionOwners.delete(sessionId);
+      void persistLiveOwners().catch(() => {});
+    }
+    const code = status === 404 ? 'live_session_gone' : status === 413 ? 'live_frame_too_large'
+      : status === 415 ? 'live_frame_unsupported' : status === 422 ? 'live_options_invalid'
+        : status === 429 ? 'live_worker_busy' : 'live_worker_unavailable';
+    const httpStatus = [404, 413, 415, 422, 429].includes(status) ? status : 503;
+    return json(res, httpStatus, { error: code, message: 'Live scanning is unavailable or this request was rejected.' });
+  }
+
+  function ownedLiveSession(req, res, sessionId) {
+    const actor = actorFromRequest(req);
+    if (!actor?.user || actor.service) return unauthorized(res), null;
+    if (!liveSessionIdPattern.test(sessionId)) return badRequest(res, 'Invalid live session id.'), null;
+    pruneLiveOwners();
+    const owner = liveSessionOwners.get(sessionId);
+    if (!owner || owner.expiresAt <= Date.now()) return notFound(res, 'Live session not found'), null;
+    if (owner.userId !== actor.userId) return forbidden(res, 'This live session belongs to another account.'), null;
+    return actor;
+  }
 
   function catalog() {
     return [...bundledCards, ...store.state.customCards];
@@ -1303,133 +1351,12 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
           const gate = usageGate(store, actor, 'scan');
           if (!gate.allowed) return json(res, 402, { error: 'usage_limit', message: `${gate.entitlements.name} plan daily scan usage limit reached.`, usage: gate });
         }
-        let body = await readJson(req, config.maxRequestBytes);
-        const frontDataUrl = body.frontDataUrl || body.dataUrl || '';
-        const backDataUrl = body.backDataUrl || '';
-        const certDataUrl = body.certDataUrl || '';
-        let localOcr = null;
-        if (ocrService?.enabled && (frontDataUrl || certDataUrl)) {
-          try {
-            localOcr = await ocrService.recognizeDataUrl(frontDataUrl || certDataUrl);
-            body = {
-              ...body,
-              ocrText: [body.ocrText, localOcr.text].filter(Boolean).join(' '),
-              localOcrFields: localOcr.fields,
-              localOcrFieldConfidence: localOcr.fieldConfidence,
-            };
-          } catch (error) {
-            localOcr = { error: error.message, code: error.code || 'OCR_FAILED', processedRemotely: false };
-          }
-        }
-        let sceneAnalysis = null;
-        let vision = null;
-        let workerScan = null;
-        let workerError = null;
-        let vectorMatches = [];
-        let vectorSearchError = null;
-        if (frontDataUrl || certDataUrl) {
-          try {
-            workerScan = await visionWorker.scanDataUrl(frontDataUrl || certDataUrl, {
-              filename: body.imageName || body.filename || 'card-scan.jpg',
-            });
-          } catch (error) {
-            workerError = error.message;
-          }
-        }
-        const workerEmbedding = workerScan?.visual_embedding?.vector;
-        const requestedShopId = String(body.shopId || body.organizationId || '').trim();
-        if (Array.isArray(workerEmbedding) && workerEmbedding.length === 1152 && requestedShopId && databaseRuntime?.findVisualMatches) {
-          const access = actor ? canAccessOrganization(store.state, actor, requestedShopId, 'viewer') : { allowed: false };
-          if (access.allowed) {
-            try {
-              vectorMatches = await databaseRuntime.findVisualMatches({
-                embedding: workerEmbedding,
-                shopId: requestedShopId,
-                limit: Math.max(3, Math.min(25, Number(body.vectorCandidateLimit || 10))),
-              });
-            } catch (error) {
-              vectorSearchError = error instanceof Error ? error.message : String(error);
-            }
-          } else {
-            vectorSearchError = 'Vector search was skipped because this account cannot access the requested shop.';
-          }
-        }
-        if (!vision && vectorMatches[0] && Number(vectorMatches[0].cosineSimilarity || 0) >= 0.70) {
-          const top = vectorMatches[0];
-          vision = {
-            facts: {
-              player: top.subjectName,
-              year: top.releaseYear,
-              brand: top.brand || top.manufacturer,
-              set: top.setName,
-              cardNumber: top.cardNumber,
-              parallel: top.parallelName,
-            },
-            player: top.subjectName,
-            year: top.releaseYear,
-            brand: top.brand || top.manufacturer,
-            set: top.setName,
-            cardNumber: top.cardNumber,
-            parallel: top.parallelName,
-            fieldConfidence: {
-              player: top.cosineSimilarity, year: top.cosineSimilarity, brand: top.cosineSimilarity,
-              set: top.cosineSimilarity, cardNumber: top.cosineSimilarity, parallel: top.cosineSimilarity,
-            },
-            confidence: top.cosineSimilarity,
-            provider: 'maneflow_pgvector',
-            imageProcessedRemotely: false,
-            warnings: top.cosineSimilarity < 0.86 ? ['Visual vector match requires OCR or checklist confirmation.'] : [],
-          };
-        }
-
-        if ((frontDataUrl || certDataUrl) && config.openaiApiKey && config.openaiVisionModel) {
-          sceneAnalysis = await analyzeCardScene({
-            frontDataUrl: frontDataUrl || certDataUrl, backDataUrl, certDataUrl, apiKey: config.openaiApiKey, model: config.openaiVisionModel,
-          });
-          vision = sceneAnalysis?.primaryCard || null;
-        }
-        if (!vision && workerScan && Number(workerScan.identity_confidence || 0) > 0) {
-          vision = workerCardToLegacyVision(workerScan);
-        }
-        const gradedCert = await analyzeGradedCert({ body, vision }, { state: store.state, actor });
-        const scanBody = { ...body, gradedCert };
-        const recognition = recognizeCardScene({
-          cards: catalog(),
-          body: scanBody,
-          sceneAnalysis,
-          vision,
-          gradedCert,
-          corrections: store.state.scanCorrections || [],
-          enrichCard,
-        });
-        const primary = recognition.primary || {};
-        const matches = primary.matches || [];
-        const scanConfidence = primary.scanConfidence || evaluateScanConfidence({ body: scanBody, vision, result: { gradedCert }, matches });
-        const result = {
-          mode: primary.mode || (sceneAnalysis ? 'vision_scene_catalog_match' : 'manual_text_match'),
-          query: primary.query || '',
-          exact: Boolean(primary.exact && !scanConfidence.needsManualConfirmation),
-          needsConfirmation: scanConfidence.needsManualConfirmation,
-          message: recognition.message,
-          matches,
-        };
-        const marketContext = matches[0] ? await marketContextForCard(matches[0]) : { available: false, provider: null, reason: 'no_match' };
-        let scan = null;
-        let scanSession = null;
-        if (actor) {
-          scan = await store.recordScan(actor.userId, {
-            mode: result.mode, query: result.query, matchIds: matches.map((card) => card.id),
-            imageProcessedRemotely: Boolean(sceneAnalysis), frontBack: Boolean(backDataUrl), warnings: [...(vision?.warnings || []), ...scanConfidence.warnings],
-          });
-          await recordUsage(store, actor, 'scan', 1, { mode: result.mode, remoteVision: Boolean(sceneAnalysis), confidence: scanConfidence.scanConfidenceScore, detectedCards: recognition.summary.detectedCards });
-          scanSession = await createScanSession(store, actor, { body: scanBody, vision, result: { ...result, gradedCert }, matches, recognition }, { cards: catalog() });
-          await recordUsage(store, actor, 'scan_session', 1, { scanSessionId: scanSession.id, needsManualConfirmation: scanConfidence.needsManualConfirmation });
-        }
-        return json(res, 200, {
-          ...result, matches, recognition, vision, sceneAnalysis, workerScan, workerError, vectorMatches, vectorSearchError, localOcr, gradedCert, scanConfidence, marketContext, scanId: scan?.id || null, scanSessionId: scanSession?.id || null,
-          imageProcessedRemotely: Boolean(sceneAnalysis || workerScan?.image_processed_remotely), visionWorkerUsed: Boolean(workerScan), marketMode: marketMode(config, store.state.customSales.length),
-          message: scanConfidence.needsManualConfirmation ? scanConfidence.recommendedNextStep : (sceneAnalysis ? 'Scene imagery was analyzed, then each detected region was matched against the ManeFlow catalog. Confirm condition before transacting.' : result.message),
-        });
+        const body = await readJson(req, config.maxRequestBytes);
+        const processed = await scanPipeline({ body, ownerUserId: actor?.user ? actor.userId : null });
+        const marketContext = processed.exact && processed.matches?.[0]
+          ? await marketContextForCard(processed.matches[0])
+          : { available: false, provider: null, reason: 'identity_unconfirmed' };
+        return json(res, 200, { ...processed, marketContext });
       } catch (error) {
         return badRequest(res, error.message);
       }
@@ -1488,6 +1415,108 @@ export function createRouter({ config, cards: bundledCards, sales: bundledSales,
       }
     }
 
+
+    if (url.pathname === '/api/vision/live/sessions' && method === 'GET') {
+      const actor = actorFromRequest(req);
+      if (!actor?.user || actor.service) return unauthorized(res);
+      pruneLiveOwners();
+      return json(res, 200, { sessions: [...liveSessionOwners.values()]
+        .filter((entry) => !entry.pending && entry.userId === actor.userId)
+        .map((entry) => ({ session_id: entry.sessionId, expires_at: new Date(entry.expiresAt).toISOString() })) });
+    }
+
+    if (url.pathname === '/api/vision/live/sessions' && method === 'POST') {
+      const actor = personalActor(req, res, { write: true });
+      if (!actor) return;
+      if (!actor.user || actor.service) return unauthorized(res);
+      if (!scanLimiter.check(`live-create:${actor.userId}`).allowed) {
+        return json(res, 429, { error: 'live_rate_limited', message: 'Live session limit reached. Try again in a minute.' });
+      }
+      if (!usageGate(store, actor, 'scan_session').allowed) {
+        return json(res, 402, { error: 'usage_limit', message: 'Daily live session limit reached.' });
+      }
+      pruneLiveOwners();
+      const active = [...liveSessionOwners.values()].filter((entry) => entry.userId === actor.userId);
+      if (active.length >= 2) return json(res, 429, { error: 'live_session_limit', message: 'Two live sessions are already active.' });
+      const reservationId = `pending:${randomUUID()}`;
+      liveSessionOwners.set(reservationId, { sessionId: reservationId, userId: actor.userId, pending: true, expiresAt: Date.now() + 30_000 });
+      try {
+        const options = await readJson(req, 10_000);
+        if (options?.mode != null && !['live', 'sweep', 'binder', 'break', 'show_intake', 'shop_counter'].includes(options.mode)) {
+          return badRequest(res, 'Invalid live mode.');
+        }
+        const session = await visionWorker.createLiveSession({ mode: options?.mode || 'live' });
+        if (!liveSessionIdPattern.test(String(session?.session_id || ''))) throw new Error('Invalid worker session id');
+        liveSessionOwners.set(session.session_id, { sessionId: session.session_id, userId: actor.userId, createdAt: Date.now(), expiresAt: Date.now() + liveSessionTtlMs });
+        await persistLiveOwners();
+        await recordUsage(store, actor, 'scan_session');
+        return json(res, 201, session);
+      } catch (error) {
+        return liveWorkerFailure(res, error);
+      } finally {
+        liveSessionOwners.delete(reservationId);
+      }
+    }
+
+    const liveSession = /^\/api\/vision\/live\/sessions\/([^/]+)$/.exec(url.pathname);
+    if (liveSession && (method === 'GET' || method === 'DELETE')) {
+      const sessionId = liveSession[1];
+      if (!ownedLiveSession(req, res, sessionId)) return;
+      try {
+        const result = method === 'DELETE'
+          ? await visionWorker.closeLiveSession(sessionId)
+          : await visionWorker.getLiveSession(sessionId);
+        if (method === 'DELETE') {
+          liveSessionOwners.delete(sessionId);
+          await persistLiveOwners();
+        }
+        return json(res, 200, result);
+      } catch (error) {
+        return liveWorkerFailure(res, error, sessionId);
+      }
+    }
+
+    const liveFrame = /^\/api\/vision\/live\/sessions\/([^/]+)\/frames$/.exec(url.pathname);
+    if (liveFrame && method === 'POST') {
+      const sessionId = liveFrame[1];
+      const actor = ownedLiveSession(req, res, sessionId);
+      if (!actor) return;
+      if (!liveFrameLimiter.check(`live-frame:${actor.userId}`).allowed) {
+        return json(res, 429, { error: 'live_frame_rate_limited', message: 'Live frame limit reached. Slow the capture rate.' });
+      }
+      try {
+        const body = await readJson(req, Math.ceil(maxLiveFrameBytes * 4 / 3) + 1024);
+        if (!body?.dataUrl || typeof body.dataUrl !== 'string') return badRequest(res, 'A frame dataUrl is required.');
+        const base64 = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/i.exec(body.dataUrl);
+        if (!base64) return badRequest(res, 'A supported base64 image dataUrl is required.');
+        if (Buffer.byteLength(base64[2], 'base64') > maxLiveFrameBytes) {
+          return json(res, 413, { error: 'live_frame_too_large', message: 'Live frame exceeds the configured limit.' });
+        }
+        const day = new Date().toISOString().slice(0, 10);
+        const key = `${actor.userId}:${day}`;
+        const dailyCap = Math.min(config.maxLiveFramesPerDay || 20_000, (entitlementsFor(actor).scansPerDay ?? 2_000) * 10);
+        store.state.liveFrameUsage ||= {};
+        for (const usageKey of Object.keys(store.state.liveFrameUsage)) {
+          if (!usageKey.endsWith(`:${day}`)) delete store.state.liveFrameUsage[usageKey];
+        }
+        const used = Number(store.state.liveFrameUsage[key] || 0);
+        if (used >= dailyCap) return json(res, 402, { error: 'live_frame_budget', message: 'Daily live frame budget reached.' });
+        store.state.liveFrameUsage[key] = used + 1;
+        await store.persist();
+        const result = await visionWorker.processLiveFrame(sessionId, body.dataUrl);
+        const owner = liveSessionOwners.get(sessionId);
+        if (owner && owner.expiresAt - Date.now() < liveSessionTtlMs - 60_000) {
+          owner.expiresAt = Date.now() + liveSessionTtlMs;
+          await persistLiveOwners();
+        }
+        return json(res, 200, result);
+      } catch (error) {
+        if (/too large/i.test(String(error?.message)) && !error?.status) {
+          return json(res, 413, { error: 'live_frame_too_large', message: 'Live frame exceeds the configured limit.' });
+        }
+        return liveWorkerFailure(res, error, sessionId);
+      }
+    }
 
     if (url.pathname === '/api/vision/status' && method === 'GET') {
       try {
