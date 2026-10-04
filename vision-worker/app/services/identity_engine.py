@@ -416,13 +416,22 @@ class IdentityEngine:
                 and str(provider_card[key]).strip().lower() != str(local_card[key]).strip().lower()
             ]
             if conflicts:
+                conflicted_card = provider_result.card.model_copy()
+                conflicted_card.card_id = None
                 return IdentityResult(
-                    **{
-                        **provider_result.__dict__,
-                        "warnings": provider_result.warnings + local_reference.warnings + [
-                            "The live vision result conflicts with an in-house reference on: " + ", ".join(conflicts) + ". Manual review is required."
-                        ],
-                    }
+                    card=conflicted_card,
+                    identity_confidence=min(provider_result.identity_confidence, 0.74),
+                    variant_confidence=min(provider_result.variant_confidence, 0.48),
+                    provider=f"{provider_result.provider}+in_house_reference_conflict",
+                    processed_remotely=provider_result.processed_remotely,
+                    is_trading_card=provider_result.is_trading_card,
+                    card_side=provider_result.card_side if provider_result.card_side != "unknown" else local_reference.card_side,
+                    needs_back_image=True,
+                    visible_text=provider_result.visible_text,
+                    barcode_values=values,
+                    warnings=provider_result.warnings + local_reference.warnings + [
+                        "The live vision result conflicts with an in-house reference on: " + ", ".join(conflicts) + ". Manual review is required."
+                    ],
                 )
 
             merged = {
