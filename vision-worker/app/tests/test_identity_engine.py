@@ -116,3 +116,63 @@ def test_front_back_pair_conflict_forces_manual_confidence():
     assert result.variant_confidence <= 0.48
     assert result.needs_back_image is True
     assert any("conflicts" in warning.lower() for warning in result.warnings)
+
+def test_provider_reference_conflict_clears_canonical_id_and_caps_confidence(monkeypatch):
+    from uuid import UUID
+    from app.services import identity_engine as identity_module
+    from app.services.reference_matcher import ReferenceCandidate
+
+    canonical_id = UUID("22222222-2222-2222-2222-222222222222")
+
+    class ConflictingProvider:
+        async def identify(self, image_bytes, *, media_type, barcode_values):
+            return IdentityResult(
+                card=PredictedCard(
+                    card_id=canonical_id,
+                    player_name="Provider Player",
+                    year=2026,
+                    brand="Topps",
+                    card_number="10",
+                    parallel="Gold",
+                ),
+                identity_confidence=0.99,
+                variant_confidence=0.97,
+                provider="test-provider",
+                processed_remotely=False,
+                is_trading_card=True,
+                card_side="front",
+                needs_back_image=False,
+                barcode_values=barcode_values,
+            )
+
+    monkeypatch.setattr(
+        identity_module.reference_matcher,
+        "match",
+        lambda _image_bytes: ReferenceCandidate(
+            card=PredictedCard(
+                card_id=UUID("33333333-3333-3333-3333-333333333333"),
+                player_name="Curated Player",
+                year=2026,
+                brand="Topps",
+                card_number="10",
+                parallel="Gold",
+            ),
+            identity_confidence=0.98,
+            variant_confidence=0.94,
+            card_side="front",
+            method="exact_content_hash",
+            distance=0,
+            warnings=["curated reference"],
+        ),
+    )
+
+    result = __import__("asyncio").run(
+        IdentityEngine(provider=ConflictingProvider()).identify(b"image", "ignored.jpg")
+    )
+    assert result.card.card_id is None
+    assert result.identity_confidence <= 0.74
+    assert result.variant_confidence <= 0.48
+    assert result.needs_back_image is True
+    assert "conflict" in result.provider
+    assert any("conflicts with an in-house reference" in warning for warning in result.warnings)
+
